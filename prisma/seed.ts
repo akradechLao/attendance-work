@@ -11,6 +11,7 @@ const employees = [
   { name: "จิรายุ เริงหาญ", groupType: "B" as const, wfhQuota: 1, preferredOffDay: null },
   { name: "พีรภาส ไพรบึง", groupType: "B" as const, wfhQuota: 1, preferredOffDay: "Sunday" },
   { name: "อัญชลี ทะพงษ์", groupType: "A" as const, wfhQuota: 1, preferredOffDay: null },
+  { name: "อัครเดช เหลาจินดาวัฒน์", groupType: "A" as const, wfhQuota: 1, preferredOffDay: null },
 ];
 
 async function main() {

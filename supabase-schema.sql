@@ -196,7 +196,8 @@ VALUES
     ('กฤษกร วุฒิ', 'A', 1, 'Saturday', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('จิรายุ เริงหาญ', 'B', 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('พีรภาส ไพรบึง', 'B', 1, 'Sunday', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('อัญชลี ทะพงษ์', 'A', 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+    ('อัญชลี ทะพงษ์', 'A', 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('อัครเดช เหลาจินดาวัฒน์', 'A', 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- ============================================
 -- INDEXES
