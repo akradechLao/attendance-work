@@ -1,5 +1,5 @@
 [build]
-  command = "npx prisma generate && next build"
+  command = "rm -rf node_modules package-lock.json && npm install && npx prisma generate && next build"
   publish = ".next"
 
 [[plugins]]
