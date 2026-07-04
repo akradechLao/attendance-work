@@ -9,6 +9,8 @@ export async function sendTelegramMessage(message: string): Promise<boolean> {
 
   try {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -17,7 +19,9 @@ export async function sendTelegramMessage(message: string): Promise<boolean> {
         text: message,
         parse_mode: "HTML",
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     return res.ok;
   } catch (error) {
     console.error("Telegram send message error:", error);

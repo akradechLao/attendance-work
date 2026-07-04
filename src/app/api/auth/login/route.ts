@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
     const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
-    sendTelegramMessage(`🔐 <b>Admin Login</b> - ${time}`);
+    try { sendTelegramMessage(`🔐 <b>Admin Login</b> - ${time}`); } catch {}
 
     const isSecure = request.url.startsWith("https");
 
