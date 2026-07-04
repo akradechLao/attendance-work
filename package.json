@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node --import tsx scripts/cleanup-db.mts",
-"build": "node --import tsx scripts/cleanup-db.mts && prisma db push --accept-data-loss && prisma generate && node --import tsx prisma/seed.mts && next build",
+    "build": "node --import tsx scripts/cleanup-db.mts && prisma db push --accept-data-loss && prisma generate && node --import tsx prisma/seed.mts && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",
