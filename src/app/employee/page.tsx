@@ -131,7 +131,7 @@ export default function EmployeePortal() {
     }
   };
 
-  const handleConfirmAction = async () => {
+  const handleConfirmAction = async (photoOverride?: string | null) => {
     if (!selectedEmpId || !confirmAction) return;
 
     setConfirmAction(null);
@@ -142,10 +142,11 @@ export default function EmployeePortal() {
     const { latLong } = await getLocation();
     const finalLatLong = latLong || "GPS not available";
 
+    const photoToUse = photoOverride || capturedPhoto;
     let photoUrl: string | undefined;
     let photoFailed = false;
-    if (capturedPhoto) {
-      const uploaded = await uploadPhoto(capturedPhoto, confirmAction, selectedEmpId);
+    if (photoToUse) {
+      const uploaded = await uploadPhoto(photoToUse, confirmAction, selectedEmpId);
       if (uploaded) {
         photoUrl = uploaded;
       } else {
@@ -386,19 +387,6 @@ export default function EmployeePortal() {
 
               {/* Camera Section */}
               <div className="mt-4">
-                {!showCamera && !capturedPhoto && (
-                  <button
-                    onClick={startCamera}
-                    className="mx-auto flex items-center gap-2 rounded-lg border border-cream-dark bg-cream px-4 py-2 text-sm text-navy hover:bg-cream-dark transition-colors"
-                  >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    เปิดกล้อง
-                  </button>
-                )}
-
                 {showCamera && !capturedPhoto && (
                   <div className="relative">
                     <video
@@ -406,7 +394,7 @@ export default function EmployeePortal() {
                       autoPlay
                       playsInline
                       muted
-                      className="mx-auto h-40 w-full max-w-xs rounded-lg object-cover border-2 border-cream-dark sm:h-48 sm:max-w-sm"
+                      className="mx-auto h-48 w-full max-w-xs rounded-lg object-cover border-2 border-cream-dark sm:h-56 sm:max-w-sm"
                       style={{ transform: "scaleX(-1)" }}
                     />
                     <button
@@ -415,6 +403,7 @@ export default function EmployeePortal() {
                         if (photo) {
                           setCapturedPhoto(photo);
                           stopCamera();
+                          setTimeout(() => handleConfirmAction(photo), 300);
                         }
                       }}
                       className="mt-3 mx-auto flex items-center gap-2 rounded-full bg-red-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-red-600 transition-colors"
@@ -433,54 +422,28 @@ export default function EmployeePortal() {
                     <img
                       src={capturedPhoto}
                       alt="Captured"
-                      className="mx-auto h-40 w-full max-w-xs rounded-lg object-cover border-2 border-green-400 sm:h-48 sm:max-w-sm"
+                      className="mx-auto h-48 w-full max-w-xs rounded-lg object-cover border-2 border-green-400 sm:h-56 sm:max-w-sm"
                     />
                     <div className="absolute top-2 right-2 rounded-full bg-green-500 p-1">
                       <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <button
-                      onClick={() => {
-                        setCapturedPhoto(null);
-                        setShowCamera(true);
-                        startCamera();
-                      }}
-                      className="mt-2 mx-auto flex items-center gap-1 text-xs text-navy/50 hover:text-navy transition-colors"
-                    >
-                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      ถ่ายใหม่
-                    </button>
+                    <p className="mt-2 text-sm text-green-600 font-medium">กำลังบันทึก...</p>
                   </div>
                 )}
               </div>
 
               <canvas ref={canvasRef} className="hidden" />
 
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6">
                 <button
                   onClick={handleCancel}
-                  className="flex-1 rounded-lg border border-cream-dark px-4 py-2.5 text-sm font-medium text-navy/70 hover:bg-cream transition-colors"
+                  className="w-full rounded-lg border border-cream-dark px-4 py-2.5 text-sm font-medium text-navy/70 hover:bg-cream transition-colors"
                 >
                   ยกเลิก
                 </button>
-                <button
-                  onClick={handleConfirmAction}
-                  disabled={!capturedPhoto}
-                  className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                    confirmAction === "checkin"
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "gradient-navy hover:shadow-md"
-                  }`}
-                >
-                  ยืนยัน
-                </button>
               </div>
-              {!capturedPhoto && (
-                <p className="mt-2 text-xs text-navy/40">กรุณาถ่ายภาพก่อนกดยืนยัน</p>
-              )}
             </div>
           </div>
         </div>
