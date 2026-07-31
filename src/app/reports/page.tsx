@@ -56,7 +56,7 @@ export default function ReportsPage() {
   const [history, setHistory] = useState<DailyRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [otSummary, setOtSummary] = useState<OtSummaryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"summary" | "ot">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "ot" | "payroll">("summary");
   const [exportingPdf, setExportingPdf] = useState(false);
   const [pdfExportEmpId, setPdfExportEmpId] = useState<number | null>(null);
 
@@ -124,18 +124,22 @@ export default function ReportsPage() {
   }
 
   function handleExportCsv() {
-    const headers = ["No.", "Name", "Group", "Late", "Absent", "Leave", "WFH", "Work Hours", "Avg Check-in"];
-    const rows = stats.map((emp, idx) => [
-      idx + 1,
-      emp.name,
-      emp.groupType,
-      emp.lateDays,
-      emp.absentDays,
-      emp.leaveDays,
-      emp.wfhDays,
-      emp.totalWorkHours,
-      emp.avgCheckIn,
-    ]);
+    const headers = ["No.", "Name", "Group", "Late", "Absent", "Leave", "WFH", "Work Hours", "OT Hours", "Avg Check-in"];
+    const rows = stats.map((emp, idx) => {
+      const ot = otSummary.find((o) => o.empId === emp.empId);
+      return [
+        idx + 1,
+        emp.name,
+        emp.groupType,
+        emp.lateDays,
+        emp.absentDays,
+        emp.leaveDays,
+        emp.wfhDays,
+        emp.totalWorkHours,
+        ot?.totalOtHours || 0,
+        emp.avgCheckIn,
+      ];
+    });
 
     const csvContent = [
       headers.join(","),
@@ -147,11 +151,113 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `attendance-${startDate}-to-${endDate}.csv`;
+    link.download = `attendance-summary-${startDate}-to-${endDate}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  async function handleExportPayrollCsv() {
+    setLoading(true);
+    const allHistory: {
+      empId: number;
+      name: string;
+      groupType: string;
+      date: string;
+      dayName: string;
+      checkIn: string | null;
+      checkOut: string | null;
+      workHours: number | null;
+      otHours: number;
+      status: string;
+    }[] = [];
+
+    for (const emp of stats) {
+      const hist = await getEmployeeAttendanceHistory(emp.empId, startDate, endDate);
+      const ot = otSummary.find((o) => o.empId === emp.empId);
+
+      for (const rec of hist) {
+        let otHours = 0;
+        if (rec.checkOut && ot) {
+          const otDetail = ot.details.find((d) => d.date === rec.date);
+          otHours = otDetail?.otHours || 0;
+        }
+
+        const d = new Date(rec.date);
+        const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+
+        allHistory.push({
+          empId: emp.empId,
+          name: emp.name,
+          groupType: emp.groupType,
+          date: rec.date,
+          dayName: dayNames[d.getDay()],
+          checkIn: rec.checkIn,
+          checkOut: rec.checkOut,
+          workHours: rec.workHours,
+          otHours,
+          status: rec.status,
+        });
+      }
+    }
+
+    const headers = [
+      "ลำดับ", "ชื่อพนักงาน", "กลุ่ม", "วันที่", "วัน",
+      "เวลาเข้า", "เวลาออก", "ชม.ทำงาน", "ชม.OT", "สถานะ"
+    ];
+
+    const rows = allHistory.map((rec, idx) => [
+      idx + 1,
+      rec.name,
+      rec.groupType,
+      rec.date,
+      rec.dayName,
+      rec.checkIn || "-",
+      rec.checkOut || "-",
+      rec.workHours !== null ? rec.workHours : "-",
+      rec.otHours > 0 ? rec.otHours : "-",
+      rec.status,
+    ]);
+
+    const summaryRows = ["", "", "", "", "", "", "", "", "", ""];
+    const summaryHeader = ["", "สรุป", "", "", "", "", "", "", "", ""];
+
+    const totalRows = stats.map((emp) => {
+      const ot = otSummary.find((o) => o.empId === emp.empId);
+      return [
+        "",
+        emp.name,
+        emp.groupType,
+        `ตรงเวลา ${emp.onTimeDays}`,
+        `สาย ${emp.lateDays}`,
+        `ขาด ${emp.absentDays}`,
+        `ลา ${emp.leaveDays}`,
+        `WFH ${emp.wfhDays}`,
+        `${emp.totalWorkHours} ชม.`,
+        `OT ${ot?.totalOtHours || 0} ชม.`,
+      ].join(",");
+    });
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.join(",")),
+      "",
+      summaryHeader.join(","),
+      ...totalRows,
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `payroll-report-${startDate}-to-${endDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setLoading(false);
   }
 
   const selectedEmpData = stats.find((s) => s.empId === selectedEmp);
@@ -177,7 +283,7 @@ export default function ReportsPage() {
           <div className="h-10 w-1.5 gradient-gold rounded-full" />
           <div>
             <h1 className="text-2xl font-bold text-navy">รายงานสถิติการเข้างาน</h1>
-            <p className="mt-0.5 text-sm text-navy/50">ดูข้อมูลย้อนหลัง ขาด ลา มาสาย OT</p>
+            <p className="mt-0.5 text-sm text-navy/50">ดูข้อมูลย้อนหลัง ขาด ลา มาสาย OT สรุปเงินเดือน</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -282,10 +388,10 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-cream-dark">
+      <div className="flex gap-2 border-b border-cream-dark overflow-x-auto">
         <button
           onClick={() => setActiveTab("summary")}
-          className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
             activeTab === "summary"
               ? "border-gold text-gold-dark"
               : "border-transparent text-navy/50 hover:text-navy"
@@ -295,13 +401,23 @@ export default function ReportsPage() {
         </button>
         <button
           onClick={() => setActiveTab("ot")}
-          className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
             activeTab === "ot"
               ? "border-gold text-gold-dark"
               : "border-transparent text-navy/50 hover:text-navy"
           }`}
         >
           สรุป OT
+        </button>
+        <button
+          onClick={() => setActiveTab("payroll")}
+          className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
+            activeTab === "payroll"
+              ? "border-gold text-gold-dark"
+              : "border-transparent text-navy/50 hover:text-navy"
+          }`}
+        >
+          รายงานเงินเดือน
         </button>
       </div>
 
@@ -331,52 +447,57 @@ export default function ReportsPage() {
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ลา</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">WFH</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.ทำ</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.OT</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">เข้าเฉลี่ย</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">รายละเอียด</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.map((emp) => (
-                    <tr
-                      key={emp.empId}
-                      className={`border-b border-cream-dark/50 transition-colors ${
-                        selectedEmp === emp.empId ? "bg-gold/10" : "hover:bg-cream/30"
-                      }`}
-                    >
-                      <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-navy">{emp.name}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.groupType === "A" ? "bg-navy/10 text-navy" : "bg-gold/20 text-gold-dark"}`}>
-                          {emp.groupType}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-green-600 font-medium">{emp.onTimeDays}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-red-600 font-medium">{emp.lateDays}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-orange-600 font-medium">{emp.absentDays}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-blue-600 font-medium">
-                      <div>{emp.leaveDays}</div>
-                      {Object.keys(emp.leaveDetails).length > 0 && (
-                        <div className="flex flex-wrap gap-0.5 justify-center mt-1">
-                          {Object.entries(emp.leaveDetails).map(([type, days]) => (
-                            <span key={type} className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${LEAVE_TYPES[type]?.color || "bg-gray-100 text-gray-800"}`}>
-                              {LEAVE_TYPES[type]?.label || type} {days}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-green-600 font-medium">{emp.wfhDays}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{emp.totalWorkHours} ชม.</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{emp.avgCheckIn}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleViewHistory(emp.empId)}
-                          className="rounded-lg border border-cream-dark px-3 py-1.5 text-xs font-medium text-navy/70 hover:bg-cream transition-colors"
-                        >
-                          ดูรายวัน
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {stats.map((emp) => {
+                    const ot = otSummary.find((o) => o.empId === emp.empId);
+                    return (
+                      <tr
+                        key={emp.empId}
+                        className={`border-b border-cream-dark/50 transition-colors ${
+                          selectedEmp === emp.empId ? "bg-gold/10" : "hover:bg-cream/30"
+                        }`}
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-navy">{emp.name}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.groupType === "A" ? "bg-navy/10 text-navy" : "bg-gold/20 text-gold-dark"}`}>
+                            {emp.groupType}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-green-600 font-medium">{emp.onTimeDays}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-red-600 font-medium">{emp.lateDays}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-orange-600 font-medium">{emp.absentDays}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-blue-600 font-medium">
+                          <div>{emp.leaveDays}</div>
+                          {Object.keys(emp.leaveDetails).length > 0 && (
+                            <div className="flex flex-wrap gap-0.5 justify-center mt-1">
+                              {Object.entries(emp.leaveDetails).map(([type, days]) => (
+                                <span key={type} className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${LEAVE_TYPES[type]?.color || "bg-gray-100 text-gray-800"}`}>
+                                  {LEAVE_TYPES[type]?.label || type} {days}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-green-600 font-medium">{emp.wfhDays}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{emp.totalWorkHours} ชม.</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-purple-600 font-medium">{ot?.totalOtHours || 0} ชม.</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{emp.avgCheckIn}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleViewHistory(emp.empId)}
+                            className="rounded-lg border border-cream-dark px-3 py-1.5 text-xs font-medium text-navy/70 hover:bg-cream transition-colors"
+                          >
+                            ดูรายวัน
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -443,11 +564,119 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {activeTab === "payroll" && (
+        <div className="rounded-xl border border-cream-dark bg-white shadow-gold overflow-hidden">
+          <div className="gradient-navy px-6 py-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">รายงานเงินเดือน - สรุปการเข้างาน</h2>
+              <p className="text-xs text-white/60 mt-1">ข้อมูลสำหรับฝ่ายบุคคลนำไปคำนวณเงินเดือน</p>
+            </div>
+            <button
+              onClick={handleExportPayrollCsv}
+              disabled={loading}
+              className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/30 transition-colors disabled:opacity-50"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              ดาวน์โหลด CSV สำหรับเงินเดือน
+            </button>
+          </div>
+          {loading ? (
+            <div className="p-8 space-y-4 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-cream-dark rounded-lg" />
+              ))}
+            </div>
+          ) : stats.length === 0 ? (
+            <div className="p-8 text-center text-navy/50">ไม่มีข้อมูลในช่วงวันที่เลือก</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-cream-dark bg-cream/50">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-navy/60 uppercase">ชื่อพนักงาน</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">กลุ่ม</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">วันทำงาน</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ตรงเวลา</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">มาสาย</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ขาดงาน</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ลางาน</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">WFH</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.ทำงานรวม</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.OT รวม</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">เข้าเฉลี่ย</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map((emp) => {
+                    const ot = otSummary.find((o) => o.empId === emp.empId);
+                    return (
+                      <tr
+                        key={emp.empId}
+                        className="border-b border-cream-dark/50 hover:bg-cream/30 transition-colors cursor-pointer"
+                        onClick={() => handleViewHistory(emp.empId)}
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-navy">{emp.name}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.groupType === "A" ? "bg-navy/10 text-navy" : "bg-gold/20 text-gold-dark"}`}>
+                            {emp.groupType}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-medium text-navy">{emp.onTimeDays + emp.lateDays + emp.wfhDays}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">{emp.onTimeDays}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.lateDays > 0 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-500"}`}>{emp.lateDays}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.absentDays > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"}`}>{emp.absentDays}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.leaveDays > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>{emp.leaveDays}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${emp.wfhDays > 0 ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"}`}>{emp.wfhDays}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-navy">{emp.totalWorkHours} ชม.</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
+                          <span className={`text-sm font-bold ${(ot?.totalOtHours || 0) > 0 ? "text-purple-700" : "text-navy/40"}`}>
+                            {ot?.totalOtHours || 0} ชม.
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{emp.avgCheckIn}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-cream/50 font-bold">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-navy">รวมทั้งหมด</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy">-</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy">{stats.reduce((s, e) => s + e.onTimeDays + e.lateDays + e.wfhDays, 0)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-green-700">{stats.reduce((s, e) => s + e.onTimeDays, 0)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-red-700">{totalLate}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-orange-700">{totalAbsent}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-blue-700">{totalLeave}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-purple-700">{totalWfh}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy">{stats.reduce((s, e) => s + e.totalWorkHours, 0)} ชม.</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-purple-700">{totalOtHours} ชม.</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="border-t border-cream-dark bg-cream/30 px-6 py-3">
+            <p className="text-xs text-navy/40">* คลิกที่ชื่อพนักงานเพื่อดูรายละเอียดรายวัน กด &quot;ดาวน์โหลด CSV สำหรับเงินเดือน&quot; เพื่อ export ข้อมูลละเอียดทุกวัน</p>
+          </div>
+        </div>
+      )}
+
       {selectedEmp && selectedEmpData && (
         <div className="rounded-xl border border-cream-dark bg-white shadow-gold overflow-hidden">
           <div className="gradient-navy px-6 py-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-white">
-              รายละเอียด {selectedEmpData.name} (กลุ่ม {selectedEmpData.groupType})
+              รายละเอียด {selectedEmpData.name} (กลุ่ม {selectedEmpData.groupType}) - {startDate} ถึง {endDate}
             </h2>
             <button
               onClick={() => { setSelectedEmp(null); setHistory([]); }}
@@ -474,6 +703,7 @@ export default function ReportsPage() {
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">เวลาเข้า</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">เวลาออก</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.ทำงาน</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">ชม.OT</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold text-navy/60 uppercase">สถานะ</th>
                   </tr>
                 </thead>
@@ -481,6 +711,8 @@ export default function ReportsPage() {
                   {history.map((rec) => {
                     const d = new Date(rec.date);
                     const dayName = d.toLocaleDateString("th-TH", { weekday: "short" });
+                    const ot = otSummary.find((o) => o.empId === selectedEmp);
+                    const otDetail = ot?.details.find((dt) => dt.date === rec.date);
                     return (
                       <tr key={rec.date} className="border-b border-cream-dark/50 hover:bg-cream/30 transition-colors">
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-navy">{rec.date}</td>
@@ -488,6 +720,7 @@ export default function ReportsPage() {
                         <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{rec.checkIn || "-"}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{rec.checkOut || "-"}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy/70">{rec.workHours !== null ? `${rec.workHours} ชม.` : "-"}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-medium text-purple-600">{otDetail ? `${otDetail.otHours} ชม.` : "-"}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-center">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                             rec.status === "ตรงเวลา" ? "bg-green-100 text-green-800" :
@@ -503,6 +736,18 @@ export default function ReportsPage() {
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-cream/50 font-bold">
+                    <td colSpan={4} className="whitespace-nowrap px-4 py-3 text-sm text-navy text-right">รวม</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-navy">
+                      {history.reduce((s, r) => s + (r.workHours || 0), 0)} ชม.
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm text-purple-700">
+                      {otSummary.find((o) => o.empId === selectedEmp)?.totalOtHours || 0} ชม.
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
