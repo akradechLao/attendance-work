@@ -54,10 +54,11 @@ export async function sendTelegramPhoto(
     formData.append("caption", caption);
     formData.append("parse_mode", "HTML");
 
-    const res = await fetch(url, {
-      method: "POST",
-      body: formData,
-    });
+        const res = await fetch(url, {
+          method: "POST",
+          body: formData,
+          signal: AbortSignal.timeout(5000),
+        });
     return res.ok;
   } catch (error) {
     console.error("Telegram send photo error:", error);

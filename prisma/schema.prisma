@@ -59,6 +59,7 @@ model AttendanceLog {
   employee Employee @relation(fields: [empId], references: [id])
 
   @@unique([empId, date])
+  @@index([date])
   @@map("attendance_logs")
 }
 
@@ -72,6 +73,7 @@ model ShiftSchedule {
   employee Employee @relation(fields: [empId], references: [id])
 
   @@unique([empId, workDate])
+  @@index([workDate])
   @@map("shift_schedules")
 }
 
@@ -87,6 +89,9 @@ model LeaveRequest {
 
   employee Employee @relation(fields: [empId], references: [id])
 
+  @@index([empId])
+  @@index([status])
+  @@index([startDate, endDate])
   @@map("leave_requests")
 }
 

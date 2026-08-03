@@ -11,14 +11,15 @@ interface MapPickerProps {
 
 function loadGoogleMapsScript(apiKey: string): Promise<void> {
   return new Promise((resolve) => {
-    if (window.google?.maps) {
+    const w = window as Record<string, any>;
+    if (w.google?.maps) {
       resolve();
       return;
     }
     const existingScript = document.getElementById("google-maps-script");
     if (existingScript) {
       const check = setInterval(() => {
-        if (window.google?.maps) {
+        if (w.google?.maps) {
           clearInterval(check);
           resolve();
         }
@@ -32,7 +33,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     script.defer = true;
     script.onload = () => {
       const check = setInterval(() => {
-        if (window.google?.maps) {
+        if (w.google?.maps) {
           clearInterval(check);
           resolve();
         }
@@ -49,24 +50,25 @@ export default function MapPicker({
   height = "400px",
 }: MapPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
+  const mapInstance = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const initRef = useRef(false);
 
   const initMap = useCallback(async () => {
     if (!mapRef.current || initRef.current) return;
-    if (!window.google?.maps) return;
+    const w = window as Record<string, any>;
+    if (!w.google?.maps) return;
 
     initRef.current = true;
 
-    const map = new google.maps.Map(mapRef.current, {
+    const map = new (window as any).google.maps.Map(mapRef.current, {
       center: { lat: latitude, lng: longitude },
       zoom: 15,
       mapTypeControl: false,
       streetViewControl: false,
     });
 
-    const marker = new google.maps.Marker({
+    const marker = new (window as any).google.maps.Marker({
       position: { lat: latitude, lng: longitude },
       map,
       draggable: true,
@@ -78,7 +80,7 @@ export default function MapPicker({
       if (pos) onSelect(pos.lat(), pos.lng());
     });
 
-    map.addListener("click", (e: google.maps.MapMouseEvent) => {
+    map.addListener("click", (e: any) => {
       if (e.latLng) {
         marker.setPosition(e.latLng);
         onSelect(e.latLng.lat(), e.latLng.lng());

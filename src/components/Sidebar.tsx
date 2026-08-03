@@ -40,7 +40,7 @@ export default function Sidebar() {
         setIsLoggedIn(false);
         setChecking(false);
       });
-  }, [pathname]);
+  }, []);
 
   const navItems = isLoggedIn ? adminNavItems : employeeNavItems;
 

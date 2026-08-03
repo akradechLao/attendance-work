@@ -51,20 +51,19 @@ export async function checkIn(
   photoUrl?: string
 ): Promise<CheckInResult> {
   try {
-    const employee = await prisma.employee.findUnique({
-      where: { id: empId },
-    });
+    const now = getThaiTime();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const [employee, wfhRecord, existing] = await Promise.all([
+      prisma.employee.findUnique({ where: { id: empId } }),
+      prisma.wfhRecord.findUnique({ where: { empId_date: { empId, date: today } } }),
+      prisma.attendanceLog.findUnique({ where: { empId_date: { empId, date: today } } }),
+    ]);
 
     if (!employee) {
       return { success: false, message: "ไม่พบพนักงาน" };
     }
 
-    const now = getThaiTime();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-    const wfhRecord = await prisma.wfhRecord.findUnique({
-      where: { empId_date: { empId, date: today } },
-    });
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
 
     let distanceInfo: string | undefined;
@@ -97,10 +96,6 @@ export async function checkIn(
 
     const checkInTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
     const status = getStatus(checkInTime, employee.groupType);
-
-    const existing = await prisma.attendanceLog.findUnique({
-      where: { empId_date: { empId, date: today } },
-    });
 
     let record;
     if (existing) {
@@ -160,18 +155,20 @@ export async function checkOut(
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const checkOutTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
-    const existing = await prisma.attendanceLog.findUnique({
-      where: { empId_date: { empId, date: today } },
-      include: { employee: true },
-    });
+    const [existing, wfhRecord] = await Promise.all([
+      prisma.attendanceLog.findUnique({
+        where: { empId_date: { empId, date: today } },
+        include: { employee: true },
+      }),
+      prisma.wfhRecord.findUnique({
+        where: { empId_date: { empId, date: today } },
+      }),
+    ]);
 
     if (!existing) {
       return { success: false, message: "ยังไม่ได้เช็คอินวันนี้" };
     }
 
-    const wfhRecord = await prisma.wfhRecord.findUnique({
-      where: { empId_date: { empId, date: today } },
-    });
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
 
     let distanceInfo: string | undefined;
@@ -834,13 +831,15 @@ export async function getOtSummary(
   startDate: string,
   endDate: string
 ): Promise<OtSummaryItem[]> {
-  const employees = await prisma.employee.findMany({ orderBy: { id: "asc" } });
-  const records = await prisma.attendanceLog.findMany({
-    where: {
-      date: { gte: startDate, lte: endDate },
-      checkOut: { not: null },
-    },
-  });
+  const [employees, records] = await Promise.all([
+    prisma.employee.findMany({ orderBy: { id: "asc" } }),
+    prisma.attendanceLog.findMany({
+      where: {
+        date: { gte: startDate, lte: endDate },
+        checkOut: { not: null },
+      },
+    }),
+  ]);
 
   return employees.map((emp) => {
     const empRecords = records.filter((r) => r.empId === emp.id);
@@ -877,33 +876,30 @@ export async function generateAttendanceReportPdf(
     const fontkit = (await import("@pdf-lib/fontkit")).default;
 
     const whereClause = empId ? { id: empId } : {};
-    const employees = await prisma.employee.findMany({ where: whereClause, orderBy: { id: "asc" } });
-
-    const records = await prisma.attendanceLog.findMany({
-      where: {
-        ...(empId ? { empId } : {}),
-        date: { gte: startDate, lte: endDate },
-      },
-    });
-    const leaves = await prisma.leaveRequest.findMany({
-      where: {
-        ...(empId ? { empId } : {}),
-        status: { not: "rejected" },
-        OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
-      },
-    });
-    let wfhRecords: { empId: number; date: string }[] = [];
-    try {
-      wfhRecords = await prisma.wfhRecord.findMany({
+    const [employees, records, leaves, wfhRecordsRaw] = await Promise.all([
+      prisma.employee.findMany({ where: whereClause, orderBy: { id: "asc" } }),
+      prisma.attendanceLog.findMany({
+        where: {
+          ...(empId ? { empId } : {}),
+          date: { gte: startDate, lte: endDate },
+        },
+      }),
+      prisma.leaveRequest.findMany({
+        where: {
+          ...(empId ? { empId } : {}),
+          status: { not: "rejected" },
+          OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
+        },
+      }),
+      prisma.wfhRecord.findMany({
         where: {
           ...(empId ? { empId } : {}),
           date: { gte: startDate, lte: endDate },
           status: { not: "rejected" },
         },
-      });
-    } catch {
-      wfhRecords = [];
-    }
+      }).catch(() => []),
+    ]);
+    const wfhRecords: { empId: number; date: string }[] = wfhRecordsRaw;
 
     const fs = await import("fs");
     const path = await import("path");
