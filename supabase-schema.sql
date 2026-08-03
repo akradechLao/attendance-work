@@ -208,6 +208,8 @@ CREATE INDEX "attendance_logs_date_idx" ON "attendance_logs"("date");
 CREATE INDEX "shift_schedules_emp_id_idx" ON "shift_schedules"("emp_id");
 CREATE INDEX "shift_schedules_work_date_idx" ON "shift_schedules"("work_date");
 CREATE INDEX "leave_requests_emp_id_idx" ON "leave_requests"("emp_id");
+CREATE INDEX "leave_requests_status_idx" ON "leave_requests"("status");
+CREATE INDEX "leave_requests_date_range_idx" ON "leave_requests"("start_date", "end_date");
 CREATE INDEX "wfh_records_emp_id_idx" ON "wfh_records"("emp_id");
 CREATE INDEX "company_holidays_year_idx" ON "company_holidays"("year");
 CREATE INDEX "onboarding_records_emp_id_idx" ON "onboarding_records"("emp_id");
