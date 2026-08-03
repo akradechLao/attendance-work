@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { getAllEmployees } from "@/lib/actions";
+import { getAllEmployees } from "@/lib/attendance/queries";
 import { createLeave, getAllLeaves, deleteLeave, LeaveRecord } from "@/lib/leave-actions";
 import { LEAVE_TYPES } from "@/lib/leave-constants";
 import SearchableSelect from "@/components/SearchableSelect";

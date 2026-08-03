@@ -6,7 +6,7 @@ import {
   addCompanyHoliday,
   deleteCompanyHoliday,
   syncHolidaysFromApi,
-} from "@/lib/actions";
+} from "@/lib/holidays/actions";
 
 interface Holiday {
   id: number;
@@ -27,20 +27,32 @@ export default function HolidaysPage() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  async function loadHolidays() {
-    try {
-      setLoading(true);
-      const data = await getCompanyHolidays(selectedYear);
-      setHolidays(data);
-    } catch (error) {
-      console.error("Load error:", error);
-    } finally {
-      setLoading(false);
-    }
+  async function refreshHolidays(year = selectedYear) {
+    const data = await getCompanyHolidays(year);
+    setHolidays(data);
   }
 
   useEffect(() => {
-    loadHolidays();
+    let active = true;
+
+    void (async () => {
+      try {
+        const data = await getCompanyHolidays(selectedYear);
+        if (active) {
+          setHolidays(data);
+        }
+      } catch (error) {
+        console.error("Load error:", error);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [selectedYear]);
 
   function showMessage(text: string, type: "success" | "error") {
@@ -59,7 +71,7 @@ export default function HolidaysPage() {
       showMessage(result.message, "success");
       setDate("");
       setName("");
-      loadHolidays();
+      await refreshHolidays();
     } else {
       showMessage(result.message, "error");
     }
@@ -70,7 +82,7 @@ export default function HolidaysPage() {
     if (result.success) {
       showMessage(result.message, "success");
       setDeleteConfirm(null);
-      loadHolidays();
+      await refreshHolidays();
     } else {
       showMessage(result.message, "error");
     }
@@ -81,7 +93,7 @@ export default function HolidaysPage() {
     const result = await syncHolidaysFromApi(selectedYear);
     setSyncing(false);
     showMessage(result.message, result.success ? "success" : "error");
-    if (result.success) loadHolidays();
+    if (result.success) await refreshHolidays();
   }
 
   const thaiYear = selectedYear + 543;
@@ -157,7 +169,10 @@ export default function HolidaysPage() {
           </h2>
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            onChange={(e) => {
+              setLoading(true);
+              setSelectedYear(Number(e.target.value));
+            }}
             className="rounded-lg bg-white/20 px-3 py-1.5 text-sm text-white border border-white/30 focus:outline-none"
           >
             {[2025, 2026, 2027, 2028].map((y) => (

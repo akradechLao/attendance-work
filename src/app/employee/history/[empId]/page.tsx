@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { getEmployeeMonthlyStats, getAllEmployees } from "@/lib/actions";
+import { getEmployeeMonthlyStats, getAllEmployees } from "@/lib/attendance/queries";
 import { getPhotoSrc } from "@/lib/photo-utils";
 import { LEAVE_TYPES } from "@/lib/leave-constants";
 
@@ -49,12 +49,14 @@ export default function EmployeeHistoryPage({ params }: { params: Promise<{ empI
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<number>(Number(empId) || 0);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadedKey, setLoadedKey] = useState("");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const currentKey = `${selectedEmpId}:${year}:${month}`;
+  const loading = selectedEmpId > 0 && loadedKey !== currentKey;
 
   useEffect(() => {
     getAllEmployees().then(setEmployees).catch(() => {});
@@ -62,12 +64,17 @@ export default function EmployeeHistoryPage({ params }: { params: Promise<{ empI
 
   useEffect(() => {
     if (selectedEmpId) {
-      setLoading(true);
-      getEmployeeMonthlyStats(selectedEmpId, year, month)
-        .then(setStats)
-        .finally(() => setLoading(false));
+      let active = true;
+      getEmployeeMonthlyStats(selectedEmpId, year, month).then((data) => {
+        if (!active) return;
+        setStats(data);
+        setLoadedKey(currentKey);
+      });
+      return () => {
+        active = false;
+      };
     }
-  }, [selectedEmpId, year, month]);
+  }, [selectedEmpId, year, month, currentKey]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { getAllEmployees } from "@/lib/attendance/queries";
+import { getWfhOfMonthBulk } from "@/lib/wfh/actions";
+import { createEmployee, updateEmployee, deleteEmployee } from "@/lib/employees/actions";
 
 interface Employee {
   id: number;
@@ -33,15 +36,41 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" | null }>({ text: "", type: null });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
-  async function loadData() {
+  async function fetchData() {
+    const [emps, usage] = await Promise.all([getAllEmployees(), getWfhOfMonthBulk()]);
+    return { emps, usage };
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      try {
+        const { emps, usage } = await fetchData();
+        if (!active) return;
+        setEmployees(emps);
+        setWfhUsage(usage);
+      } catch (error) {
+        console.error("Load error:", error);
+        setMessage({ text: "ไม่สามารถโหลดข้อมูลได้", type: "error" });
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function refreshData() {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [empsRes, usageRes] = await Promise.all([
-        fetch("/api/employees").then((r) => r.json()),
-        fetch("/api/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "wfh-usage" }) }).then((r) => r.json()).catch(() => ({ data: {} })),
-      ]);
-      if (empsRes.success) setEmployees(empsRes.data);
-      if (usageRes.data) setWfhUsage(usageRes.data);
+      const { emps, usage } = await fetchData();
+      setEmployees(emps);
+      setWfhUsage(usage);
     } catch (error) {
       console.error("Load error:", error);
       setMessage({ text: "ไม่สามารถโหลดข้อมูลได้", type: "error" });
@@ -49,10 +78,6 @@ export default function EmployeesPage() {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   function showMessage(text: string, type: "success" | "error") {
     setMessage({ text, type });
@@ -85,23 +110,16 @@ export default function EmployeesPage() {
     setSubmitting(true);
     try {
       const preferredOffDay = form.preferredOffDay || null;
-      const body = editId
-        ? { id: editId, name: form.name.trim(), groupType: form.groupType, preferredOffDay }
-        : { name: form.name.trim(), groupType: form.groupType, preferredOffDay };
-
-      const res = await fetch("/api/employees", {
-        method: editId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const result = await res.json();
+      const result = editId
+        ? await updateEmployee(editId, form.name.trim(), form.groupType, preferredOffDay)
+        : await createEmployee(form.name.trim(), form.groupType, preferredOffDay);
 
       if (result.success) {
         showMessage(result.message, "success");
         setShowForm(false);
         setForm(emptyForm);
         setEditId(null);
-        loadData();
+        await refreshData();
       } else {
         showMessage(result.message || "เกิดข้อผิดพลาด", "error");
       }
@@ -115,12 +133,11 @@ export default function EmployeesPage() {
 
   async function handleDelete(id: number) {
     try {
-      const res = await fetch(`/api/employees?id=${id}`, { method: "DELETE" });
-      const result = await res.json();
+      const result = await deleteEmployee(id);
       if (result.success) {
         showMessage(result.message, "success");
         setDeleteConfirm(null);
-        loadData();
+        await refreshData();
       } else {
         showMessage(result.message || "เกิดข้อผิดพลาด", "error");
       }
@@ -137,7 +154,7 @@ export default function EmployeesPage() {
           <div className="h-10 w-1.5 gradient-gold rounded-full" />
           <div>
             <h1 className="text-2xl font-bold text-navy">จัดการพนักงาน</h1>
-            <p className="mt-0.5 text-sm text-navy/50">เพิ่ม แก้ไข ลบรายชื่อพนักงาน</p>
+            <p className="mt-0.5 text-sm text-navy/50">เพิ่ม แก้ไข และลบรายชื่อพนักงาน</p>
           </div>
         </div>
         <button
@@ -146,31 +163,6 @@ export default function EmployeesPage() {
         >
           + เพิ่มพนักงาน
         </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-cream-dark bg-white p-5 shadow-gold">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex rounded-full bg-navy/10 px-2 py-0.5 text-xs font-semibold text-navy">กลุ่ม A</span>
-            <span className="text-sm font-medium text-navy">พนักงานออฟฟิศ</span>
-          </div>
-          <div className="space-y-1 text-sm text-navy/70">
-            <p>⏰ เวลาทำงาน: <span className="font-medium text-navy">08:00 - 17:00</span></p>
-            <p>🍽️ พักเที่ยง: <span className="font-medium text-navy">11:45 - 12:45</span></p>
-            <p>📅 เข้าเวรวันเสาร์ (ผลัดกัน)</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-cream-dark bg-white p-5 shadow-gold">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex rounded-full bg-gold/20 px-2 py-0.5 text-xs font-semibold text-gold-dark">กลุ่ม B</span>
-            <span className="text-sm font-medium text-navy">พนักงานโอที</span>
-          </div>
-          <div className="space-y-1 text-sm text-navy/70">
-            <p>⏰ เวลาทำงาน: <span className="font-medium text-navy">07:00 - 16:00</span></p>
-            <p>🔥 โอที: <span className="font-medium text-red-600">16:00 - 20:00 (บังคับ)</span></p>
-            <p>🍽️ พักเที่ยง: <span className="font-medium text-navy">11:45 - 12:45</span></p>
-          </div>
-        </div>
       </div>
 
       {message.text && message.type && (
@@ -199,7 +191,6 @@ export default function EmployeesPage() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-                  placeholder="กรอกชื่อ-นามสกุล"
                   required
                 />
               </div>
@@ -210,33 +201,12 @@ export default function EmployeesPage() {
                   onChange={(e) => setForm({ ...form, groupType: e.target.value as "A" | "B" })}
                   className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
                 >
-                  <option value="A">กลุ่ม A - ออฟฟิศ (08:00-17:00, พัก 11:45-12:45)</option>
-                  <option value="B">กลุ่ม B - โอที (07:00-16:00 + โอที 16:00-20:00, พัก 11:45-12:45)</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
                 </select>
-                <div className="mt-2 rounded-lg bg-cream/50 border border-cream-dark p-3">
-                  {form.groupType === "A" ? (
-                    <div className="text-xs text-navy/70 space-y-1">
-                      <p>⏰ ทำงาน: 08:00 - 17:00</p>
-                      <p>🍽️ พักเที่ยง: 11:45 - 12:45</p>
-                      <p>📅 เข้าเวรวันเสาร์ (ผลัดกัน)</p>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-navy/70 space-y-1">
-                      <p>⏰ ทำงาน: 07:00 - 16:00</p>
-                      <p>🔥 โอทีบังคับ: 16:00 - 20:00</p>
-                      <p>🍽️ พักเที่ยง: 11:45 - 12:45</p>
-                    </div>
-                  )}
-                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-navy/70">สิทธิ์ WFH</label>
-                <div className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/30 px-4 py-2.5 text-navy">
-                  1 วัน/เดือน (วันเสาร์)
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-navy/70">วันหยุดประจำ (ถ้ามี)</label>
+                <label className="block text-sm font-medium text-navy/70">วันหยุดประจำ</label>
                 <select
                   value={form.preferredOffDay}
                   onChange={(e) => setForm({ ...form, preferredOffDay: e.target.value })}
@@ -246,6 +216,12 @@ export default function EmployeesPage() {
                   <option value="Saturday">เสาร์</option>
                   <option value="Sunday">อาทิตย์</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">WFH เดือนนี้</label>
+                <div className="mt-1 rounded-lg border border-cream-dark bg-cream/30 px-4 py-2.5 text-navy">
+                  1 วัน/เดือน (วันเสาร์)
+                </div>
               </div>
             </div>
             <div className="flex gap-3 pt-2">
@@ -258,7 +234,11 @@ export default function EmployeesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setEditId(null); setForm(emptyForm); }}
+                onClick={() => {
+                  setShowForm(false);
+                  setEditId(null);
+                  setForm(emptyForm);
+                }}
                 className="rounded-lg border border-cream-dark px-4 py-2.5 text-sm font-medium text-navy/70 hover:bg-cream transition-colors"
               >
                 ยกเลิก
@@ -310,7 +290,7 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-center text-xs text-navy/70">
-                      {emp.groupType === "A" ? "08:00-17:00" : "07:00-16:00 (+โอที)"}
+                      {emp.groupType === "A" ? "08:00-17:00" : "07:00-16:00 (+OT)"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-center text-sm text-navy/70">
                       {wfhUsage[emp.id] || 0} / {emp.wfhQuota} วัน

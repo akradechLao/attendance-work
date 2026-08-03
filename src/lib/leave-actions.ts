@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
+import { getThaiTime } from "@/lib/helpers";
 
 export interface LeaveResult {
   success: boolean;
@@ -113,10 +114,6 @@ export async function getAllLeaves(): Promise<LeaveRecord[]> {
     employee: r.employee,
     leaveType: r.leaveType,
   }));
-}
-
-function getThaiTime() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
 }
 
 export async function getUpcomingLeaves(): Promise<LeaveRecord[]> {

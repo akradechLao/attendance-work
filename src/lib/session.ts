@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 
-const SESSION_COOKIE = "session_token";
 const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "hr-attendance-secret-2024"
 );
@@ -13,13 +13,13 @@ export interface SessionData {
 }
 
 export async function createSession(data: SessionData): Promise<void> {
-  const token = await new SignJWT(data as any)
+  const token = await new SignJWT({ ...data })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("24h")
     .sign(SECRET);
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -30,7 +30,7 @@ export async function createSession(data: SessionData): Promise<void> {
 
 export async function getSession(): Promise<SessionData | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
@@ -43,7 +43,7 @@ export async function getSession(): Promise<SessionData | null> {
 
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
 export async function requireAuth(): Promise<SessionData> {

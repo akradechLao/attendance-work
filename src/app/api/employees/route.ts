@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { createEmployee, updateEmployee, deleteEmployee } from "@/lib/employees/actions";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const where: any = {};
+    const where: { companyId?: number } = {};
     if (session.role === "employee" && session.companyId) {
       where.companyId = session.companyId;
     }
@@ -51,21 +52,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "กรุณากรอกข้อมูลให้ครบถ้วน" }, { status: 400 });
     }
 
-    const targetCompanyId = companyId || session.companyId || 1;
-
-    const employee = await prisma.employee.create({
-      data: {
-        companyId: targetCompanyId,
-        name,
-        groupType,
-        wfhQuota: 1,
-        preferredOffDay: preferredOffDay || null,
-        employeeCode: employeeCode || null,
-        pin: pin || "1234",
-      },
+    const result = await createEmployee(name, groupType, preferredOffDay || null, {
+      companyId: companyId || session.companyId || undefined,
+      employeeCode: employeeCode || null,
+      pin: pin || null,
     });
 
-    return NextResponse.json({ success: true, message: "เพิ่มพนักงานสำเร็จ", data: employee });
+    return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return NextResponse.json(
       { success: false, message: `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : String(error)}` },
@@ -88,18 +81,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, message: "กรุณากรอกข้อมูลให้ครบถ้วน" }, { status: 400 });
     }
 
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: {
-        name,
-        groupType,
-        preferredOffDay: preferredOffDay || null,
-        employeeCode: employeeCode || null,
-        ...(pin && { pin }),
-      },
+    const result = await updateEmployee(id, name, groupType, preferredOffDay || null, {
+      employeeCode: employeeCode || null,
+      pin: pin || null,
     });
 
-    return NextResponse.json({ success: true, message: "แก้ไขพนักงานสำเร็จ", data: employee });
+    return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return NextResponse.json(
       { success: false, message: `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : String(error)}` },
@@ -122,16 +109,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, message: "ไม่พบรหัสพนักงาน" }, { status: 400 });
     }
 
-    await prisma.$transaction([
-      prisma.attendanceLog.deleteMany({ where: { empId: id } }),
-      prisma.shiftSchedule.deleteMany({ where: { empId: id } }),
-      prisma.leaveRequest.deleteMany({ where: { empId: id } }),
-      prisma.wfhRecord.deleteMany({ where: { empId: id } }),
-      prisma.onboardingRecord.deleteMany({ where: { empId: id } }),
-      prisma.employee.delete({ where: { id } }),
-    ]);
-
-    return NextResponse.json({ success: true, message: "ลบพนักงานสำเร็จ" });
+    const result = await deleteEmployee(id);
+    return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return NextResponse.json(
       { success: false, message: `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : String(error)}` },

@@ -1,4 +1,5 @@
 import { GroupType, AttendanceStatus } from "@/generated/prisma/enums";
+import { getThaiTime } from "@/lib/helpers";
 
 export interface BusinessRule {
   workStart: string;
@@ -48,10 +49,6 @@ export function getStatus(checkInTime: string, groupType: GroupType): Attendance
 
 export function formatTime(time: string): string {
   return time.substring(0, 5);
-}
-
-function getThaiTime() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
 }
 
 export function isTodaySunday(): boolean {

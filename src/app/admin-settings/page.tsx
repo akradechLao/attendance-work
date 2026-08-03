@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAdminUser, updateAdminCredentials } from "@/lib/actions";
+import { getAdminUser, updateAdminCredentials } from "@/lib/auth/actions";
 
 export default function AdminSettingsPage() {
   const [currentUsername, setCurrentUsername] = useState("");

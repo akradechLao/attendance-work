@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 
 export function proxy(request: NextRequest) {
-  const session = request.cookies.get("admin_session");
+  const session = request.cookies.get(SESSION_COOKIE_NAME);
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === "/login";
   const isApiAuth = pathname.startsWith("/api/auth");
+  const isPublicApi = pathname === "/api/companies";
   const isApiUpload = pathname === "/api/upload";
   const isEmployeePage = pathname.startsWith("/employee");
 
-  if (isApiAuth || isApiUpload || isEmployeePage) {
+  if (isApiAuth || isPublicApi || isApiUpload || isEmployeePage) {
     return NextResponse.next();
   }
 

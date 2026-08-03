@@ -5,7 +5,7 @@ import {
   getAttendanceStats,
   getEmployeeAttendanceHistory,
   getOtSummary,
-} from "@/lib/actions";
+} from "@/lib/reports/actions";
 import { LEAVE_TYPES } from "@/lib/leave-constants";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -41,18 +41,32 @@ interface OtSummaryItem {
   details: { date: string; checkOut: string; otHours: number }[];
 }
 
-export default function ReportsPage() {
+function formatDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getInitialRange() {
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return {
+    start: formatDate(firstDay),
+    end: formatDate(lastDay),
+  };
+}
 
-  const formatDate = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+async function fetchReportData(start: string, end: string) {
+  return Promise.all([
+    getAttendanceStats(start, end),
+    getOtSummary(start, end),
+  ]);
+}
 
-  const [startDate, setStartDate] = useState(formatDate(firstDay));
-  const [endDate, setEndDate] = useState(formatDate(lastDay));
+export default function ReportsPage() {
+  const [startDate, setStartDate] = useState(() => getInitialRange().start);
+  const [endDate, setEndDate] = useState(() => getInitialRange().end);
   const [stats, setStats] = useState<EmployeeStats[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedEmp, setSelectedEmp] = useState<number | null>(null);
   const [history, setHistory] = useState<DailyRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -61,23 +75,37 @@ export default function ReportsPage() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [pdfExportEmpId, setPdfExportEmpId] = useState<number | null>(null);
 
-  async function loadStats() {
-    setLoading(true);
-    const [statsData, otData] = await Promise.all([
-      getAttendanceStats(startDate, endDate),
-      getOtSummary(startDate, endDate),
-    ]);
-    setStats(statsData);
-    setOtSummary(otData);
-    setLoading(false);
-  }
-
   useEffect(() => {
-    loadStats();
+    let active = true;
+
+    void (async () => {
+      try {
+        const { start, end } = getInitialRange();
+        const [statsData, otData] = await fetchReportData(start, end);
+        if (!active) return;
+        setStats(statsData);
+        setOtSummary(otData);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function handleLoad() {
-    await loadStats();
+    setLoading(true);
+    try {
+      const [statsData, otData] = await fetchReportData(startDate, endDate);
+      setStats(statsData);
+      setOtSummary(otData);
+    } finally {
+      setLoading(false);
+    }
     setSelectedEmp(null);
     setHistory([]);
   }
@@ -221,7 +249,6 @@ export default function ReportsPage() {
       rec.status,
     ]);
 
-    const summaryRows = ["", "", "", "", "", "", "", "", "", ""];
     const summaryHeader = ["", "สรุป", "", "", "", "", "", "", "", ""];
 
     const totalRows = stats.map((emp) => {

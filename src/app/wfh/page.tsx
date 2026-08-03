@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  getAllEmployees,
-  requestWfh,
-  cancelWfh,
-  getWfhRecords,
-  getWfhOfMonthBulk,
-} from "@/lib/actions";
+import { getAllEmployees } from "@/lib/attendance/queries";
+import { requestWfh, cancelWfh, getWfhRecords, getWfhOfMonthBulk } from "@/lib/wfh/actions";
 import SearchableSelect from "@/components/SearchableSelect";
 
 interface Employee {
@@ -42,22 +37,48 @@ export default function WfhPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
-  async function loadData() {
-    setLoading(true);
+  async function fetchData() {
     const [emps, recs, usage] = await Promise.all([
       getAllEmployees(),
       getWfhRecords(),
       getWfhOfMonthBulk(),
     ]);
-    setEmployees(emps);
-    setRecords(recs);
-    setWfhUsage(usage);
-    setLoading(false);
+    return { emps, recs, usage };
   }
 
   useEffect(() => {
-    loadData();
+    let active = true;
+
+    void (async () => {
+      try {
+        const { emps, recs, usage } = await fetchData();
+        if (!active) return;
+        setEmployees(emps);
+        setRecords(recs);
+        setWfhUsage(usage);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  async function refreshData() {
+    setLoading(true);
+    try {
+      const { emps, recs, usage } = await fetchData();
+      setEmployees(emps);
+      setRecords(recs);
+      setWfhUsage(usage);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function showMessage(text: string, type: "success" | "error") {
     setMessage({ text, type });
@@ -90,7 +111,7 @@ export default function WfhPage() {
       setSelectedEmp(0);
       setSelectedDate("");
       setReason("");
-      loadData();
+      await refreshData();
     } else {
       showMessage(result.message, "error");
     }
@@ -100,7 +121,7 @@ export default function WfhPage() {
     const result = await cancelWfh(id);
     if (result.success) {
       showMessage(result.message, "success");
-      loadData();
+      await refreshData();
     } else {
       showMessage(result.message, "error");
     }

@@ -12,7 +12,7 @@ import {
   returnOnboardingEquipment,
   addOnboardingTraining,
   completeOnboardingTraining,
-} from "@/lib/actions";
+} from "@/lib/onboarding/actions";
 import {
   ONBOARDING_STEPS,
   ONBOARDING_DOC_TYPES,
@@ -48,10 +48,28 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ emp
   const [newTraining, setNewTraining] = useState({ trainingName: "", trainer: "", scheduledDate: "" });
 
   useEffect(() => {
-    loadData();
+    let active = true;
+
+    void (async () => {
+      try {
+        const data = await getOnboardingRecord(Number(empId));
+        if (!active) return;
+        setRecord(data as OnboardingRecord | null);
+      } catch (error) {
+        console.error("Load onboarding detail error:", error);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [empId]);
 
-  async function loadData() {
+  async function refreshRecord() {
     setLoading(true);
     const data = await getOnboardingRecord(Number(empId));
     setRecord(data as OnboardingRecord | null);
@@ -60,7 +78,7 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ emp
 
   async function handleCompleteStep(stepKey: string) {
     const result = await completeOnboardingStep(Number(empId), stepKey, "Admin");
-    if (result.success) loadData();
+    if (result.success) await refreshRecord();
   }
 
   async function handleAddDocument() {
@@ -69,13 +87,13 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ emp
     if (result.success) {
       setShowAddDoc(false);
       setNewDoc({ docType: "", docLabel: "" });
-      loadData();
+      await refreshRecord();
     }
   }
 
   async function handleVerifyDocument(docId: number, status: "verified" | "rejected") {
     const result = await verifyOnboardingDocument(docId, status, "Admin");
-    if (result.success) loadData();
+    if (result.success) await refreshRecord();
   }
 
   async function handleAddEquipment() {
@@ -90,13 +108,13 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ emp
     if (result.success) {
       setShowAddEquip(false);
       setNewEquip({ equipType: "", equipName: "", serialNumber: "", notes: "" });
-      loadData();
+      await refreshRecord();
     }
   }
 
   async function handleReturnEquipment(equipId: number) {
     const result = await returnOnboardingEquipment(equipId);
-    if (result.success) loadData();
+    if (result.success) await refreshRecord();
   }
 
   async function handleAddTraining() {
@@ -110,18 +128,18 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ emp
     if (result.success) {
       setShowAddTraining(false);
       setNewTraining({ trainingName: "", trainer: "", scheduledDate: "" });
-      loadData();
+      await refreshRecord();
     }
   }
 
   async function handleCompleteTraining(trainingId: number) {
     const result = await completeOnboardingTraining(trainingId);
-    if (result.success) loadData();
+    if (result.success) await refreshRecord();
   }
 
   async function handleStatusChange(status: "in_progress" | "completed" | "on_hold") {
     const result = await updateOnboardingStatus(Number(empId), status);
-    if (result.success) loadData();
+    if (result.success) await refreshRecord();
   }
 
   if (loading) {

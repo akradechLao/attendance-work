@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAttendanceWithPhotos, getAllEmployees } from "@/lib/actions";
+import { startTransition, useState, useEffect, useCallback } from "react";
+import { getAttendanceWithPhotos, getAllEmployees } from "@/lib/attendance/queries";
 import { getPhotoSrc } from "@/lib/photo-utils";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -24,42 +24,43 @@ interface Employee {
   employeeCode: string | null;
 }
 
+function formatDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function PhotoHistoryPage() {
   const [records, setRecords] = useState<PhotoRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedEmp, setSelectedEmp] = useState<number>(0);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     const twoWeeksAgo = new Date(today);
     twoWeeksAgo.setDate(today.getDate() - 14);
+    return formatDate(twoWeeksAgo);
+  });
+  const [endDate, setEndDate] = useState(() => formatDate(new Date()));
+  const [loadedRangeKey, setLoadedRangeKey] = useState("");
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const currentRangeKey = `${startDate}:${endDate}`;
+  const loading = !!startDate && !!endDate && loadedRangeKey !== currentRangeKey;
 
-    setEndDate(formatDate(today));
-    setStartDate(formatDate(twoWeeksAgo));
+  const loadData = useCallback(async () => {
+    const data = await getAttendanceWithPhotos(startDate, endDate);
+    setRecords(data);
+    setLoadedRangeKey(currentRangeKey);
+  }, [startDate, endDate, currentRangeKey]);
 
+  useEffect(() => {
     getAllEmployees().then(setEmployees);
   }, []);
 
   useEffect(() => {
     if (startDate && endDate) {
-      loadData();
+      startTransition(() => {
+        void loadData();
+      });
     }
-  }, [startDate, endDate, selectedEmp]);
-
-  function formatDate(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-
-  async function loadData() {
-    setLoading(true);
-    const data = await getAttendanceWithPhotos(startDate, endDate);
-    setRecords(data);
-    setLoading(false);
-  }
+  }, [startDate, endDate, loadData]);
 
   const filtered = selectedEmp
     ? records.filter((r) => {

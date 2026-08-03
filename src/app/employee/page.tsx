@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { checkIn, checkOut, getAllEmployees, getTodayAttendance, getEmployeeWeeklyStats } from "@/lib/actions";
+import { checkIn, checkOut } from "@/lib/attendance/actions";
+import { getAllEmployees, getTodayAttendance, getEmployeeWeeklyStats } from "@/lib/attendance/queries";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { getPhotoSrc } from "@/lib/photo-utils";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -33,7 +33,6 @@ interface AttendanceRecord {
 }
 
 export default function EmployeePortal() {
-  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<number | null>(null);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);

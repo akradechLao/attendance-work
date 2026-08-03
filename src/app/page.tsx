@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAllEmployees, getTodayAttendance, getSundayMissingAfternoon, getSaturdayShiftCount } from "@/lib/actions";
+import { getAllEmployees, getTodayAttendance, getSundayMissingAfternoon, getSaturdayShiftCount } from "@/lib/attendance/queries";
 import { getUpcomingLeaves } from "@/lib/leave-actions";
 import { getSaturdayDate, isTodaySunday } from "@/lib/business-rules";
 import StatCard from "@/components/StatCard";
@@ -57,7 +57,9 @@ export default function HRDashboard() {
   };
 
   useEffect(() => {
-    async function loadData() {
+    let active = true;
+
+    void (async () => {
       try {
         const [emps, attendance, missing, sat, leaves] = await Promise.all([
           getAllEmployees(),
@@ -66,6 +68,7 @@ export default function HRDashboard() {
           getSaturdayShiftCount(getSaturdayDate()),
           getUpcomingLeaves(),
         ]);
+        if (!active) return;
         setEmployees(emps);
         setTodayAttendance(attendance);
         setSundayMissing(missing);
@@ -73,12 +76,19 @@ export default function HRDashboard() {
         setUpcomingLeaves(leaves);
       } catch (error) {
         console.error("Database error:", error);
-        setDbError(true);
+        if (active) {
+          setDbError(true);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
-    }
-    loadData();
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {

@@ -7,8 +7,8 @@ import {
   getOnboardingStats,
   createOnboarding,
   deleteOnboarding,
-  getAllEmployees,
-} from "@/lib/actions";
+} from "@/lib/onboarding/actions";
+import { getAllEmployees } from "@/lib/attendance/queries";
 import { ONBOARDING_STATUS } from "@/lib/onboarding-constants";
 
 interface OnboardingRecord {
@@ -50,21 +50,47 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<string>("all");
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
-    setLoading(true);
+  async function fetchData() {
     const [recordsData, statsData, employeesData] = await Promise.all([
       getOnboardingRecords(),
       getOnboardingStats(),
       getAllEmployees(),
     ]);
-    setRecords(recordsData as OnboardingRecord[]);
-    setStats(statsData);
-    setEmployees(employeesData);
-    setLoading(false);
+    return { recordsData, statsData, employeesData };
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      try {
+        const { recordsData, statsData, employeesData } = await fetchData();
+        if (!active) return;
+        setRecords(recordsData as OnboardingRecord[]);
+        setStats(statsData);
+        setEmployees(employeesData);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function refreshData() {
+    setLoading(true);
+    try {
+      const { recordsData, statsData, employeesData } = await fetchData();
+      setRecords(recordsData as OnboardingRecord[]);
+      setStats(statsData);
+      setEmployees(employeesData);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAdd() {
@@ -76,7 +102,7 @@ export default function OnboardingPage() {
       setShowAddModal(false);
       setSelectedEmpId(0);
       setStartDate("");
-      loadData();
+      await refreshData();
     } else {
       alert(result.message);
     }
@@ -85,7 +111,7 @@ export default function OnboardingPage() {
   async function handleDelete(empId: number) {
     if (!confirm("ต้องการลบข้อมูล Onboarding นี้?")) return;
     const result = await deleteOnboarding(empId);
-    if (result.success) loadData();
+    if (result.success) await refreshData();
   }
 
   function getStepProgress(steps: { isCompleted: boolean }[]) {

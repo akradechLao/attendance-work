@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [loginType, setLoginType] = useState<"admin" | "employee">("employee");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [companiesLoading, setCompaniesLoading] = useState(true);
+  const [companiesError, setCompaniesError] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
   const [pin, setPin] = useState("");
   const [username, setUsername] = useState("");
@@ -23,9 +25,18 @@ export default function LoginPage() {
     fetch("/api/companies")
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setCompanies(data.data);
+        if (data.success) {
+          setCompanies(data.data);
+        } else {
+          setCompaniesError(data.message || "โหลดรายชื่อบริษัทไม่สำเร็จ");
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        setCompaniesError("โหลดรายชื่อบริษัทไม่สำเร็จ");
+      })
+      .finally(() => {
+        setCompaniesLoading(false);
+      });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,16 +45,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const body: any = { loginType };
-
-      if (loginType === "admin") {
-        body.username = username;
-        body.password = password;
-      } else {
-        body.companyId = selectedCompanyId;
-        body.employeeCode = employeeCode;
-        body.pin = pin;
-      }
+      const body:
+        | { loginType: "admin"; username: string; password: string }
+        | { loginType: "employee"; companyId: string; employeeCode: string; pin: string } = loginType === "admin"
+        ? { loginType, username, password }
+        : { loginType, companyId: selectedCompanyId, employeeCode, pin };
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -116,14 +122,23 @@ export default function LoginPage() {
                     onChange={(e) => setSelectedCompanyId(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-3 sm:px-4 py-2.5 text-sm sm:text-base text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
                     required
+                    disabled={companiesLoading || companies.length === 0}
                   >
-                    <option value="">เลือกบริษัท</option>
+                    <option value="">
+                      {companiesLoading ? "กำลังโหลดบริษัท..." : "เลือกบริษัท"}
+                    </option>
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
                   </select>
+                  {companiesError && (
+                    <p className="mt-1 text-xs text-red-600">{companiesError}</p>
+                  )}
+                  {!companiesLoading && companies.length === 0 && !companiesError && (
+                    <p className="mt-1 text-xs text-amber-600">ไม่พบบริษัทในระบบ</p>
+                  )}
                 </div>
 
                 <div>
