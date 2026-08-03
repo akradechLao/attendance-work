@@ -7,6 +7,7 @@ import { getSaturdayDate, isTodaySunday } from "@/lib/business-rules";
 import StatCard from "@/components/StatCard";
 import AttendanceTable from "@/components/AttendanceTable";
 import LeaveCard from "@/components/LeaveCard";
+import MottoBanner from "@/components/MottoBanner";
 
 interface Employee {
   id: number;
@@ -132,6 +133,7 @@ export default function HRDashboard() {
 
   return (
     <div className="space-y-8">
+      <MottoBanner />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-1.5 gradient-gold rounded-full" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import MottoBanner from "@/components/MottoBanner";
 
 interface Company {
   id: number;
@@ -76,6 +77,8 @@ export default function LoginPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-navy">HR Attendance</h1>
           <p className="mt-1 text-xs sm:text-sm text-navy/50">เข้าสู่ระบบจัดการ</p>
         </div>
+
+        <MottoBanner />
 
         <div className="rounded-xl border border-cream-dark bg-white p-6 sm:p-8 shadow-gold">
           <div className="flex gap-2 mb-5 sm:mb-6">

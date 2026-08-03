@@ -54,14 +54,14 @@ async function main() {
     console.log(`\nProcessing: ${csvFile}`);
     
     const csvContent = readFileSync(csvFile, "utf-8");
-    const records: CsvRow[] = parse(csvContent, {
+    const records = parse(csvContent, {
       columns: true,
       skip_empty_lines: true,
       trim: true,
       bom: true,
       from_line: 2,
       relax_column_count: true,
-    }).filter((row: CsvRow) => /^\d+$|^[Hh]\d+$/.test(row.employee_code?.trim() || ""));
+    }).filter((row: any) => /^\d+$|^[Hh]\d+$/.test(row.employee_code?.trim() || "")) as CsvRow[];
 
     console.log(`Found ${records.length} employees in CSV`);
 
