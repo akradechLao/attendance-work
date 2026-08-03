@@ -4,9 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { getStatus, isTodaySunday, checkLocation, parseLatLong, calculateOTHours, isWeekend } from "@/lib/business-rules";
 import { revalidatePath } from "next/cache";
 import { sendTelegramPhoto, sendTelegramMessage } from "@/lib/telegram";
+import { getSession } from "@/lib/session";
 
 function getThaiTime() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+}
+
+async function getCompanyId(): Promise<number | undefined> {
+  const session = await getSession();
+  if (session?.role === "admin") return undefined;
+  return session?.companyId;
 }
 
 export interface CheckInResult {
@@ -34,9 +41,9 @@ export interface CheckOutResult {
   };
 }
 
-async function getActiveOfficeLocation() {
+async function getActiveOfficeLocation(companyId?: number) {
   return prisma.officeLocation.findFirst({
-    where: { isActive: true },
+    where: { isActive: true, ...(companyId ? { companyId } : {}) },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -51,6 +58,7 @@ export async function checkIn(
   photoUrl?: string
 ): Promise<CheckInResult> {
   try {
+    const companyId = await getCompanyId();
     const now = getThaiTime();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -64,12 +72,16 @@ export async function checkIn(
       return { success: false, message: "ไม่พบพนักงาน" };
     }
 
+    if (companyId && employee.companyId !== companyId) {
+      return { success: false, message: "ไม่พบพนักงาน" };
+    }
+
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
 
     let distanceInfo: string | undefined;
 
     if (!isWfh) {
-      const officeLocation = await getActiveOfficeLocation();
+      const officeLocation = await getActiveOfficeLocation(companyId);
 
       if (officeLocation && latLong && latLong !== "GPS not available") {
         const userLocation = parseLatLong(latLong);
@@ -151,6 +163,7 @@ export async function checkOut(
   photoUrl?: string
 ): Promise<CheckOutResult> {
   try {
+    const companyId = await getCompanyId();
     const now = getThaiTime();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const checkOutTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
@@ -169,12 +182,16 @@ export async function checkOut(
       return { success: false, message: "ยังไม่ได้เช็คอินวันนี้" };
     }
 
+    if (companyId && existing.employee.companyId !== companyId) {
+      return { success: false, message: "ยังไม่ได้เช็คอินวันนี้" };
+    }
+
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
 
     let distanceInfo: string | undefined;
 
     if (!isWfh) {
-      const officeLocation = await getActiveOfficeLocation();
+      const officeLocation = await getActiveOfficeLocation(companyId);
 
       if (officeLocation && latLong && latLong !== "GPS not available") {
         const userLocation = parseLatLong(latLong);
@@ -238,25 +255,35 @@ export async function checkOut(
 }
 
 export async function getTodayAttendance() {
+  const companyId = await getCompanyId();
   const now = getThaiTime();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   return prisma.attendanceLog.findMany({
-    where: { date: today },
+    where: {
+      date: today,
+      ...(companyId ? { employee: { companyId } } : {}),
+    },
     include: { employee: true },
     orderBy: { checkIn: "asc" },
   });
 }
 
 export async function getAttendanceByDate(date: string) {
+  const companyId = await getCompanyId();
   return prisma.attendanceLog.findMany({
-    where: { date },
+    where: {
+      date,
+      ...(companyId ? { employee: { companyId } } : {}),
+    },
     include: { employee: true },
     orderBy: { checkIn: "asc" },
   });
 }
 
 export async function getAllEmployees() {
+  const companyId = await getCompanyId();
   return prisma.employee.findMany({
+    where: { ...(companyId ? { companyId } : {}) },
     orderBy: { id: "asc" },
   });
 }
@@ -264,12 +291,14 @@ export async function getAllEmployees() {
 export async function getSundayMissingAfternoon() {
   if (!isTodaySunday()) return [];
 
+  const companyId = await getCompanyId();
   const now = getThaiTime();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const records = await prisma.attendanceLog.findMany({
     where: {
       date: today,
       checkIn: { not: null },
+      ...(companyId ? { employee: { companyId } } : {}),
     },
     include: { employee: true },
   });
@@ -278,12 +307,17 @@ export async function getSundayMissingAfternoon() {
 }
 
 export async function getSaturdayShiftCount(date: string) {
+  const companyId = await getCompanyId();
   return prisma.shiftSchedule.count({
-    where: { workDate: date },
+    where: {
+      workDate: date,
+      ...(companyId ? { companyId } : {}),
+    },
   });
 }
 
 export async function getShiftScheduleForWeek(startDate: string) {
+  const companyId = await getCompanyId();
   const end = new Date(startDate);
   end.setDate(end.getDate() + 6);
   const endDate = end.toISOString().split("T")[0];
@@ -291,6 +325,7 @@ export async function getShiftScheduleForWeek(startDate: string) {
   return prisma.shiftSchedule.findMany({
     where: {
       workDate: { gte: startDate, lte: endDate },
+      ...(companyId ? { companyId } : {}),
     },
     include: { employee: true },
     orderBy: [{ workDate: "asc" }, { employee: { name: "asc" } }],
@@ -303,6 +338,18 @@ export async function addShift(
   shiftType: string
 ) {
   try {
+    const companyId = await getCompanyId();
+    if (!companyId) {
+      return { success: false, message: "ไม่พบข้อมูลบริษัท" };
+    }
+
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id: empId } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     const existing = await prisma.shiftSchedule.findUnique({
       where: { empId_workDate: { empId, workDate } },
     });
@@ -310,11 +357,16 @@ export async function addShift(
     if (existing) {
       await prisma.shiftSchedule.update({
         where: { id: existing.id },
-        data: { shiftType: shiftType as "normal" | "ot" | "saturday" | "sunday" },
+        data: { shiftCode: shiftType as any },
       });
     } else {
       await prisma.shiftSchedule.create({
-        data: { empId, workDate, shiftType: shiftType as "normal" | "ot" | "saturday" | "sunday" },
+        data: {
+          empId,
+          workDate,
+          shiftCode: shiftType as any,
+          companyId,
+        },
       });
     }
 
@@ -331,8 +383,12 @@ export async function createEmployee(
   preferredOffDay: string | null
 ) {
   try {
+    const companyId = await getCompanyId();
+    if (!companyId) {
+      return { success: false, message: "ไม่พบข้อมูลบริษัท" };
+    }
     await prisma.employee.create({
-      data: { name, groupType, wfhQuota: 1, preferredOffDay },
+      data: { name, groupType, wfhQuota: 1, preferredOffDay, companyId },
     });
     revalidatePath("/employees");
     revalidatePath("/");
@@ -350,6 +406,14 @@ export async function updateEmployee(
   preferredOffDay: string | null
 ) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     await prisma.employee.update({
       where: { id },
       data: { name, groupType, wfhQuota: 1, preferredOffDay },
@@ -365,6 +429,14 @@ export async function updateEmployee(
 
 export async function deleteEmployee(id: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     await prisma.$transaction([
       prisma.attendanceLog.deleteMany({ where: { empId: id } }),
       prisma.shiftSchedule.deleteMany({ where: { empId: id } }),
@@ -383,6 +455,14 @@ export async function deleteEmployee(id: number) {
 
 export async function requestWfh(empId: number, date: string, reason: string) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id: empId } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     const now = getThaiTime();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
@@ -420,6 +500,17 @@ export async function requestWfh(empId: number, date: string, reason: string) {
 
 export async function cancelWfh(id: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const record = await prisma.wfhRecord.findUnique({
+        where: { id },
+        include: { employee: true },
+      });
+      if (!record || record.employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบข้อมูล" };
+      }
+    }
+
     await prisma.wfhRecord.delete({ where: { id } });
     revalidatePath("/wfh");
     revalidatePath("/employees");
@@ -430,7 +521,10 @@ export async function cancelWfh(id: number) {
 }
 
 export async function getWfhRecords(empId?: number) {
-  const where = empId ? { empId } : {};
+  const companyId = await getCompanyId();
+  const where: any = {};
+  if (empId) where.empId = empId;
+  if (companyId) where.employee = { companyId };
   return prisma.wfhRecord.findMany({
     where,
     include: { employee: true },
@@ -439,6 +533,14 @@ export async function getWfhRecords(empId?: number) {
 }
 
 export async function getWfhOfMonth(empId: number) {
+  const companyId = await getCompanyId();
+  if (companyId) {
+    const employee = await prisma.employee.findUnique({ where: { id: empId } });
+    if (!employee || employee.companyId !== companyId) {
+      return [];
+    }
+  }
+
   const now = getThaiTime();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   return prisma.wfhRecord.findMany({
@@ -451,12 +553,14 @@ export async function getWfhOfMonth(empId: number) {
 }
 
 export async function getWfhOfMonthBulk(): Promise<Record<number, number>> {
+  const companyId = await getCompanyId();
   const now = getThaiTime();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const records = await prisma.wfhRecord.findMany({
     where: {
       date: { startsWith: month },
       status: { not: "rejected" },
+      ...(companyId ? { employee: { companyId } } : {}),
     },
     select: { empId: true },
   });
@@ -468,6 +572,14 @@ export async function getWfhOfMonthBulk(): Promise<Record<number, number>> {
 }
 
 export async function isWfhDay(empId: number, date: string): Promise<boolean> {
+  const companyId = await getCompanyId();
+  if (companyId) {
+    const employee = await prisma.employee.findUnique({ where: { id: empId } });
+    if (!employee || employee.companyId !== companyId) {
+      return false;
+    }
+  }
+
   const record = await prisma.wfhRecord.findUnique({
     where: { empId_date: { empId, date } },
   });
@@ -529,12 +641,19 @@ export async function getAttendanceStats(
   startDate: string,
   endDate: string
 ): Promise<EmployeeStats[]> {
+  const companyId = await getCompanyId();
   const workDates = getDatesInRange(startDate, endDate);
 
   const [employees, attendance, leaves, wfhRecords] = await Promise.all([
-    prisma.employee.findMany({ orderBy: { id: "asc" } }),
+    prisma.employee.findMany({
+      where: { ...(companyId ? { companyId } : {}) },
+      orderBy: { id: "asc" },
+    }),
     prisma.attendanceLog.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
+      where: {
+        date: { gte: startDate, lte: endDate },
+        ...(companyId ? { employee: { companyId } } : {}),
+      },
       include: { employee: true },
     }),
     prisma.leaveRequest.findMany({
@@ -543,12 +662,15 @@ export async function getAttendanceStats(
         OR: [
           { startDate: { lte: endDate }, endDate: { gte: startDate } },
         ],
+        ...(companyId ? { companyId } : {}),
       },
+      include: { leaveType: true },
     }),
     prisma.wfhRecord.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
         status: { not: "rejected" },
+        ...(companyId ? { employee: { companyId } } : {}),
       },
     }),
   ]);
@@ -572,7 +694,7 @@ export async function getAttendanceStats(
       const days = Math.ceil((lEnd.getTime() - lStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       if (days > 0) {
         leaveDays += days;
-        leaveDetails[l.leaveType] = (leaveDetails[l.leaveType] || 0) + days;
+        leaveDetails[l.leaveType.name] = (leaveDetails[l.leaveType.name] || 0) + days;
       }
     }
 
@@ -634,6 +756,14 @@ export async function getEmployeeAttendanceHistory(
   startDate: string,
   endDate: string
 ) {
+  const companyId = await getCompanyId();
+  if (companyId) {
+    const employee = await prisma.employee.findUnique({ where: { id: empId } });
+    if (!employee || employee.companyId !== companyId) {
+      return [];
+    }
+  }
+
   const [attendance, wfhRecords, leaves] = await Promise.all([
     prisma.attendanceLog.findMany({
       where: {
@@ -700,25 +830,33 @@ export async function getEmployeeAttendanceHistory(
 }
 
 export async function getCompanyHolidays(year?: number) {
+  const companyId = await getCompanyId();
   const now = getThaiTime();
   const y = year || now.getFullYear();
   return prisma.companyHoliday.findMany({
-    where: { year: y },
+    where: {
+      year: y,
+      ...(companyId ? { companyId } : {}),
+    },
     orderBy: { date: "asc" },
   });
 }
 
 export async function addCompanyHoliday(date: string, name: string) {
   try {
+    const companyId = await getCompanyId();
+    if (!companyId) {
+      return { success: false, message: "ไม่พบข้อมูลบริษัท" };
+    }
     const year = parseInt(date.substring(0, 4));
-    const existing = await prisma.companyHoliday.findUnique({
-      where: { date },
+    const existing = await prisma.companyHoliday.findFirst({
+      where: { companyId, date },
     });
     if (existing) {
       return { success: false, message: "วันนี้ถูกบันทึกเป็นวันหยุดแล้ว" };
     }
     await prisma.companyHoliday.create({
-      data: { date, name, year },
+      data: { date, name, year, companyId },
     });
     revalidatePath("/holidays");
     return { success: true, message: "เพิ่มวันหยุดสำเร็จ" };
@@ -729,6 +867,14 @@ export async function addCompanyHoliday(date: string, name: string) {
 
 export async function deleteCompanyHoliday(id: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const holiday = await prisma.companyHoliday.findUnique({ where: { id } });
+      if (!holiday || holiday.companyId !== companyId) {
+        return { success: false, message: "ไม่พบข้อมูล" };
+      }
+    }
+
     await prisma.companyHoliday.delete({ where: { id } });
     revalidatePath("/holidays");
     return { success: true, message: "ลบวันหยุดสำเร็จ" };
@@ -738,16 +884,20 @@ export async function deleteCompanyHoliday(id: number) {
 }
 
 export async function isCompanyHoliday(date: string): Promise<boolean> {
-  const record = await prisma.companyHoliday.findUnique({
-    where: { date },
+  const companyId = await getCompanyId();
+  if (!companyId) return false;
+  const record = await prisma.companyHoliday.findFirst({
+    where: { companyId, date },
   });
   return record !== null;
 }
 
 export async function getCompanyHolidaysInRange(startDate: string, endDate: string) {
+  const companyId = await getCompanyId();
   return prisma.companyHoliday.findMany({
     where: {
       date: { gte: startDate, lte: endDate },
+      ...(companyId ? { companyId } : {}),
     },
     orderBy: { date: "asc" },
   });
@@ -755,6 +905,10 @@ export async function getCompanyHolidaysInRange(startDate: string, endDate: stri
 
 export async function syncHolidaysFromApi(year: number) {
   try {
+    const companyId = await getCompanyId();
+    if (!companyId) {
+      return { success: false, message: "ไม่พบข้อมูลบริษัท" };
+    }
     const { fetchThaiHolidays } = await import("@/lib/thai-holidays");
     const holidays = await fetchThaiHolidays(year);
 
@@ -762,8 +916,8 @@ export async function syncHolidaysFromApi(year: number) {
     let skipped = 0;
 
     for (const h of holidays) {
-      const existing = await prisma.companyHoliday.findUnique({
-        where: { date: h.date },
+      const existing = await prisma.companyHoliday.findFirst({
+        where: { companyId, date: h.date },
       });
       if (existing) {
         skipped++;
@@ -771,7 +925,7 @@ export async function syncHolidaysFromApi(year: number) {
       }
       const y = parseInt(h.date.substring(0, 4));
       await prisma.companyHoliday.create({
-        data: { date: h.date, name: h.name, year: y },
+        data: { date: h.date, name: h.name, year: y, companyId },
       });
       added++;
     }
@@ -792,6 +946,7 @@ export async function syncHolidaysFromApi(year: number) {
 }
 
 export async function getAttendanceWithPhotos(startDate: string, endDate: string) {
+  const companyId = await getCompanyId();
   const records = await prisma.attendanceLog.findMany({
     where: {
       date: { gte: startDate, lte: endDate },
@@ -799,6 +954,7 @@ export async function getAttendanceWithPhotos(startDate: string, endDate: string
         { checkInPhoto: { not: null } },
         { checkOutPhoto: { not: null } },
       ],
+      ...(companyId ? { employee: { companyId } } : {}),
     },
     include: { employee: true },
     orderBy: { date: "desc" },
@@ -831,12 +987,17 @@ export async function getOtSummary(
   startDate: string,
   endDate: string
 ): Promise<OtSummaryItem[]> {
+  const companyId = await getCompanyId();
   const [employees, records] = await Promise.all([
-    prisma.employee.findMany({ orderBy: { id: "asc" } }),
+    prisma.employee.findMany({
+      where: { ...(companyId ? { companyId } : {}) },
+      orderBy: { id: "asc" },
+    }),
     prisma.attendanceLog.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
         checkOut: { not: null },
+        ...(companyId ? { employee: { companyId } } : {}),
       },
     }),
   ]);
@@ -872,16 +1033,21 @@ export async function generateAttendanceReportPdf(
   empId?: number
 ): Promise<string> {
   try {
+    const companyId = await getCompanyId();
     const { PDFDocument, rgb } = await import("pdf-lib");
     const fontkit = (await import("@pdf-lib/fontkit")).default;
 
-    const whereClause = empId ? { id: empId } : {};
+    const whereClause = {
+      ...(empId ? { id: empId } : {}),
+      ...(companyId ? { companyId } : {}),
+    };
     const [employees, records, leaves, wfhRecordsRaw] = await Promise.all([
       prisma.employee.findMany({ where: whereClause, orderBy: { id: "asc" } }),
       prisma.attendanceLog.findMany({
         where: {
           ...(empId ? { empId } : {}),
           date: { gte: startDate, lte: endDate },
+          ...(companyId ? { employee: { companyId } } : {}),
         },
       }),
       prisma.leaveRequest.findMany({
@@ -889,13 +1055,16 @@ export async function generateAttendanceReportPdf(
           ...(empId ? { empId } : {}),
           status: { not: "rejected" },
           OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
+          ...(companyId ? { companyId } : {}),
         },
+        include: { leaveType: true },
       }),
       prisma.wfhRecord.findMany({
         where: {
           ...(empId ? { empId } : {}),
           date: { gte: startDate, lte: endDate },
           status: { not: "rejected" },
+          ...(companyId ? { employee: { companyId } } : {}),
         },
       }).catch(() => []),
     ]);
@@ -1036,7 +1205,9 @@ export async function generateAttendanceReportPdf(
 import { ONBOARDING_STEPS } from "@/lib/onboarding-constants";
 
 export async function getOnboardingRecords() {
+  const companyId = await getCompanyId();
   return prisma.onboardingRecord.findMany({
+    where: companyId ? { employee: { companyId } } : undefined,
     include: {
       employee: true,
       steps: { orderBy: { stepOrder: "asc" } },
@@ -1049,6 +1220,14 @@ export async function getOnboardingRecords() {
 }
 
 export async function getOnboardingRecord(empId: number) {
+  const companyId = await getCompanyId();
+  if (companyId) {
+    const employee = await prisma.employee.findUnique({ where: { id: empId } });
+    if (!employee || employee.companyId !== companyId) {
+      return null;
+    }
+  }
+
   return prisma.onboardingRecord.findUnique({
     where: { empId },
     include: {
@@ -1063,6 +1242,14 @@ export async function getOnboardingRecord(empId: number) {
 
 export async function createOnboarding(empId: number, startDate: string) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id: empId } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     const existing = await prisma.onboardingRecord.findUnique({ where: { empId } });
     if (existing) {
       return { success: false, message: "พนักงานคนนี้มีข้อมูล Onboarding แล้ว" };
@@ -1093,8 +1280,16 @@ export async function createOnboarding(empId: number, startDate: string) {
 
 export async function completeOnboardingStep(empId: number, stepKey: string, completedBy?: string) {
   try {
-    const record = await prisma.onboardingRecord.findUnique({ where: { empId } });
+    const companyId = await getCompanyId();
+    const record = await prisma.onboardingRecord.findUnique({
+      where: { empId },
+      include: { employee: true },
+    });
     if (!record) {
+      return { success: false, message: "ไม่พบข้อมูล Onboarding" };
+    }
+
+    if (companyId && record.employee.companyId !== companyId) {
       return { success: false, message: "ไม่พบข้อมูล Onboarding" };
     }
 
@@ -1137,6 +1332,14 @@ export async function completeOnboardingStep(empId: number, stepKey: string, com
 
 export async function updateOnboardingStatus(empId: number, status: "in_progress" | "completed" | "on_hold") {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id: empId } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     await prisma.onboardingRecord.update({
       where: { empId },
       data: { status },
@@ -1156,8 +1359,16 @@ export async function addOnboardingDocument(
   fileName?: string
 ) {
   try {
-    const record = await prisma.onboardingRecord.findUnique({ where: { empId } });
+    const companyId = await getCompanyId();
+    const record = await prisma.onboardingRecord.findUnique({
+      where: { empId },
+      include: { employee: true },
+    });
     if (!record) {
+      return { success: false, message: "ไม่พบข้อมูล Onboarding" };
+    }
+
+    if (companyId && record.employee.companyId !== companyId) {
       return { success: false, message: "ไม่พบข้อมูล Onboarding" };
     }
 
@@ -1181,6 +1392,17 @@ export async function addOnboardingDocument(
 
 export async function verifyOnboardingDocument(docId: number, status: "verified" | "rejected", verifiedBy?: string) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const doc = await prisma.onboardingDocument.findUnique({
+        where: { id: docId },
+        include: { onboarding: { include: { employee: true } } },
+      });
+      if (!doc || doc.onboarding.employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบข้อมูล" };
+      }
+    }
+
     await prisma.onboardingDocument.update({
       where: { id: docId },
       data: {
@@ -1203,8 +1425,16 @@ export async function addOnboardingEquipment(
   notes?: string
 ) {
   try {
-    const record = await prisma.onboardingRecord.findUnique({ where: { empId } });
+    const companyId = await getCompanyId();
+    const record = await prisma.onboardingRecord.findUnique({
+      where: { empId },
+      include: { employee: true },
+    });
     if (!record) {
+      return { success: false, message: "ไม่พบข้อมูล Onboarding" };
+    }
+
+    if (companyId && record.employee.companyId !== companyId) {
       return { success: false, message: "ไม่พบข้อมูล Onboarding" };
     }
 
@@ -1228,6 +1458,17 @@ export async function addOnboardingEquipment(
 
 export async function returnOnboardingEquipment(equipId: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const equip = await prisma.onboardingEquipment.findUnique({
+        where: { id: equipId },
+        include: { onboarding: { include: { employee: true } } },
+      });
+      if (!equip || equip.onboarding.employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบข้อมูล" };
+      }
+    }
+
     await prisma.onboardingEquipment.update({
       where: { id: equipId },
       data: { returnedAt: new Date() },
@@ -1245,8 +1486,16 @@ export async function addOnboardingTraining(
   scheduledDate?: string
 ) {
   try {
-    const record = await prisma.onboardingRecord.findUnique({ where: { empId } });
+    const companyId = await getCompanyId();
+    const record = await prisma.onboardingRecord.findUnique({
+      where: { empId },
+      include: { employee: true },
+    });
     if (!record) {
+      return { success: false, message: "ไม่พบข้อมูล Onboarding" };
+    }
+
+    if (companyId && record.employee.companyId !== companyId) {
       return { success: false, message: "ไม่พบข้อมูล Onboarding" };
     }
 
@@ -1269,6 +1518,17 @@ export async function addOnboardingTraining(
 
 export async function completeOnboardingTraining(trainingId: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const training = await prisma.onboardingTraining.findUnique({
+        where: { id: trainingId },
+        include: { onboarding: { include: { employee: true } } },
+      });
+      if (!training || training.onboarding.employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบข้อมูล" };
+      }
+    }
+
     await prisma.onboardingTraining.update({
       where: { id: trainingId },
       data: {
@@ -1284,6 +1544,14 @@ export async function completeOnboardingTraining(trainingId: number) {
 
 export async function deleteOnboarding(empId: number) {
   try {
+    const companyId = await getCompanyId();
+    if (companyId) {
+      const employee = await prisma.employee.findUnique({ where: { id: empId } });
+      if (!employee || employee.companyId !== companyId) {
+        return { success: false, message: "ไม่พบพนักงาน" };
+      }
+    }
+
     await prisma.onboardingRecord.delete({ where: { empId } });
     revalidatePath("/onboarding");
     return { success: true, message: "ลบข้อมูล Onboarding สำเร็จ" };
@@ -1293,7 +1561,9 @@ export async function deleteOnboarding(empId: number) {
 }
 
 export async function getOnboardingStats() {
+  const companyId = await getCompanyId();
   const records = await prisma.onboardingRecord.findMany({
+    where: companyId ? { employee: { companyId } } : undefined,
     include: { steps: true },
   });
 
@@ -1331,8 +1601,13 @@ export interface EmployeeMonthlyStats {
 }
 
 export async function getEmployeeMonthlyStats(empId: number, year: number, month: number): Promise<EmployeeMonthlyStats | null> {
+  const companyId = await getCompanyId();
   const employee = await prisma.employee.findUnique({ where: { id: empId } });
   if (!employee) return null;
+
+  if (companyId && employee.companyId !== companyId) {
+    return null;
+  }
 
   const monthStr = String(month).padStart(2, "0");
   const startDate = `${year}-${monthStr}-01`;
@@ -1363,6 +1638,7 @@ export async function getEmployeeMonthlyStats(empId: number, year: number, month
         status: { not: "rejected" },
         OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
       },
+      include: { leaveType: true },
     }),
     prisma.wfhRecord.findMany({
       where: {
@@ -1386,7 +1662,7 @@ export async function getEmployeeMonthlyStats(empId: number, year: number, month
     const days = Math.ceil((lEnd.getTime() - lStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (days > 0) {
       leaveDays += days;
-      leaveDetails[l.leaveType] = (leaveDetails[l.leaveType] || 0) + days;
+      leaveDetails[l.leaveType.name] = (leaveDetails[l.leaveType.name] || 0) + days;
     }
   }
 
@@ -1451,8 +1727,13 @@ export interface WeeklyDayItem {
 }
 
 export async function getEmployeeWeeklyStats(empId: number): Promise<{ employee: { id: number; name: string; groupType: string }; weekStart: string; weekEnd: string; days: WeeklyDayItem[]; lateDays: number; onTimeDays: number; absentDays: number; workHours: number } | null> {
+  const companyId = await getCompanyId();
   const employee = await prisma.employee.findUnique({ where: { id: empId } });
   if (!employee) return null;
+
+  if (companyId && employee.companyId !== companyId) {
+    return null;
+  }
 
   const now = getThaiTime();
   const dayOfWeek = now.getDay();
@@ -1547,7 +1828,10 @@ export async function getEmployeeWeeklyStats(empId: number): Promise<{ employee:
 // ===== ADMIN USER ACTIONS =====
 
 export async function getAdminUser() {
+  const session = await getSession();
+  const companyId = session?.companyId;
   const user = await prisma.adminUser.findFirst({
+    where: { ...(companyId ? { companyId } : {}) },
     select: { id: true, username: true },
   });
   return user;
@@ -1559,7 +1843,11 @@ export async function updateAdminCredentials(
   newPassword: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const user = await prisma.adminUser.findFirst();
+    const session = await getSession();
+    const companyId = session?.companyId;
+    const user = await prisma.adminUser.findFirst({
+      where: { ...(companyId ? { companyId } : {}) },
+    });
     if (!user) {
       return { success: false, message: "ไม่พบข้อมูลผู้ดูแลระบบ" };
     }
@@ -1593,7 +1881,6 @@ export async function updateAdminCredentials(
       where: { id: user.id },
       data: { username: newUsername, password: newPassword },
     });
-
     return { success: true, message: "แก้ไขข้อมูลเข้าสู่ระบบสำเร็จ กรุณาเข้าสู่ระบบใหม่" };
   } catch (error) {
     return { success: false, message: `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : String(error)}` };

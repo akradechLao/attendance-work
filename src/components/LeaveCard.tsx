@@ -42,7 +42,8 @@ export default function LeaveCard({ leaves, title }: LeaveCardProps) {
       <h3 className="text-lg font-semibold text-navy">{title}</h3>
       <div className="mt-4 space-y-3">
         {leaves.map((leave) => {
-          const typeInfo = LEAVE_TYPES[leave.leaveType] || { label: leave.leaveType, color: "bg-gray-100 text-gray-800" };
+          const leaveTypeName = typeof leave.leaveType === "string" ? leave.leaveType : leave.leaveType?.name || "ไม่ทราบ";
+          const typeInfo = LEAVE_TYPES[leaveTypeName] || { label: leaveTypeName, color: "bg-gray-100 text-gray-800" };
           const days = daysLeft(leave.endDate);
           return (
             <div key={leave.id} className="flex items-start gap-3 rounded-lg border border-cream-dark p-3 hover:bg-cream/50 transition-colors">

@@ -7,6 +7,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============================================
+// ENUMS
+// ============================================
+
 enum GroupType {
   A
   B
@@ -17,30 +21,87 @@ enum AttendanceStatus {
   on_time
 }
 
-enum ShiftType {
-  normal
-  ot
-  saturday
-  sunday
-  wfh
+enum ShiftCode {
+  WC0001
+  WC0002
+  WC0003
+  WC0004
+  WC0005
+  WC0006
+  WC007
+  WC008
+  WC009
+  WC010
+  WC011
+  WC012
+  WC013
+  WC014
+}
+
+enum DayType {
+  working
   holiday
+  dayOff
+  specialOff
+}
+
+enum OnboardingStatus {
+  in_progress
+  completed
+  on_hold
+}
+
+enum OnboardingDocStatus {
+  pending
+  submitted
+  verified
+  rejected
+}
+
+// ============================================
+// TABLES
+// ============================================
+
+model Company {
+  id              Int      @id @default(autoincrement())
+  name            String
+  telegramBotToken String? @map("telegram_bot_token")
+  telegramChatId  String? @map("telegram_chat_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  employees       Employee[]
+  adminUsers      AdminUser[]
+  officeLocations OfficeLocation[]
+  holidays        CompanyHoliday[]
+  leaveTypes      LeaveType[]
+  leaveRequests   LeaveRequest[]
+  shiftSchedules  ShiftSchedule[]
+  settings        CompanySetting[]
+
+  @@map("companies")
 }
 
 model Employee {
-  id                Int       @id @default(autoincrement())
-  name              String
-  groupType         GroupType @map("group_type")
-  wfhQuota          Int       @default(1) @map("wfh_quota")
-  preferredOffDay   String?   @map("preferred_off_day")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id            Int       @id @default(autoincrement())
+  companyId     Int       @map("company_id")
+  name          String
+  groupType     GroupType @map("group_type")
+  wfhQuota      Int       @default(1) @map("wfh_quota")
+  preferredOffDay String? @map("preferred_off_day")
+  pin           String?
+  employeeCode  String?   @map("employee_code")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  attendanceLogs    AttendanceLog[]
-  shiftSchedules    ShiftSchedule[]
-  leaveRequests     LeaveRequest[]
-  wfhRecords        WfhRecord[]
-  onboarding        OnboardingRecord?
+  company        Company           @relation(fields: [companyId], references: [id])
+  attendanceLogs AttendanceLog[]
+  shiftSchedules ShiftSchedule[]
+  leaveRequests  LeaveRequest[]
+  wfhRecords     WfhRecord[]
+  onboarding     OnboardingRecord?
 
+  @@index([companyId])
+  @@index([employeeCode])
   @@map("employees")
 }
 
@@ -65,30 +126,38 @@ model AttendanceLog {
 
 model ShiftSchedule {
   id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
   empId     Int      @map("emp_id")
   workDate  String   @map("work_date")
-  shiftType ShiftType @default(normal) @map("shift_type")
+  shiftCode ShiftCode @default(WC0002) @map("shift_code")
+  dayType   DayType  @default(working) @map("day_type")
   createdAt DateTime @default(now()) @map("created_at")
 
   employee Employee @relation(fields: [empId], references: [id])
+  company  Company  @relation(fields: [companyId], references: [id])
 
   @@unique([empId, workDate])
+  @@index([companyId])
   @@index([workDate])
   @@map("shift_schedules")
 }
 
 model LeaveRequest {
-  id        Int      @id @default(autoincrement())
-  empId     Int      @map("emp_id")
-  leaveType String   @map("leave_type")
-  startDate String   @map("start_date")
-  endDate   String   @map("end_date")
-  reason    String
-  status    String   @default("pending")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          Int      @id @default(autoincrement())
+  companyId   Int      @map("company_id")
+  empId       Int      @map("emp_id")
+  leaveTypeId Int      @map("leave_type_id")
+  startDate   String   @map("start_date")
+  endDate     String   @map("end_date")
+  reason      String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  employee Employee @relation(fields: [empId], references: [id])
+  employee  Employee   @relation(fields: [empId], references: [id])
+  leaveType LeaveType  @relation(fields: [leaveTypeId], references: [id])
+  company   Company    @relation(fields: [companyId], references: [id])
 
+  @@index([companyId])
   @@index([empId])
   @@index([status])
   @@index([startDate, endDate])
@@ -100,7 +169,7 @@ model WfhRecord {
   empId     Int      @map("emp_id")
   date      String
   reason    String   @default("")
-  status    String   @default("approved") // approved | pending | rejected
+  status    String   @default("approved")
   createdAt DateTime @default(now()) @map("created_at")
 
   employee Employee @relation(fields: [empId], references: [id])
@@ -111,49 +180,82 @@ model WfhRecord {
 
 model AdminUser {
   id        Int      @id @default(autoincrement())
+  companyId Int?     @map("company_id")
   username  String   @unique
   password  String
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  company Company? @relation(fields: [companyId], references: [id])
+
   @@map("admin_users")
 }
 
 model OfficeLocation {
-  id          Int      @id @default(autoincrement())
-  name        String
-  latitude    Float
-  longitude   Float
-  radiusMeters Int     @default(200) @map("radius_meters")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  companyId    Int      @map("company_id")
+  name         String
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(200) @map("radius_meters")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
   @@map("office_locations")
 }
 
 model CompanyHoliday {
   id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
   date      String
   name      String
   year      Int
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@unique([date])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, date])
+  @@index([companyId])
+  @@index([year])
   @@map("company_holidays")
 }
 
-enum OnboardingStatus {
-  in_progress
-  completed
-  on_hold
+model LeaveType {
+  id            Int      @id @default(autoincrement())
+  companyId     Int      @map("company_id")
+  name          String
+  advanceDays   Int      @default(0) @map("advance_days")
+  quotaMonthly  Int      @default(0) @map("quota_monthly")
+  quotaDaily    Int      @default(0) @map("quota_daily")
+  quotaContract Int      @default(0) @map("quota_contract")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company     Company        @relation(fields: [companyId], references: [id])
+  leaveRequests LeaveRequest[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("leave_types")
 }
 
-enum OnboardingDocStatus {
-  pending
-  submitted
-  verified
-  rejected
+model CompanySetting {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  key       String
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@map("company_settings")
 }
 
 model OnboardingRecord {
@@ -166,79 +268,79 @@ model OnboardingRecord {
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
-  employee    Employee         @relation(fields: [empId], references: [id])
-  steps       OnboardingStep[]
-  documents   OnboardingDocument[]
-  equipment   OnboardingEquipment[]
-  training    OnboardingTraining[]
+  employee  Employee            @relation(fields: [empId], references: [id])
+  steps     OnboardingStep[]
+  documents OnboardingDocument[]
+  equipment OnboardingEquipment[]
+  training  OnboardingTraining[]
 
   @@map("onboarding_records")
 }
 
 model OnboardingStep {
-  id              Int              @id @default(autoincrement())
-  onboardingId    Int              @map("onboarding_id")
-  stepOrder       Int              @map("step_order")
-  stepKey         String           @map("step_key")
-  stepLabel       String           @map("step_label")
-  isCompleted     Boolean          @default(false) @map("is_completed")
-  completedAt     DateTime?        @map("completed_at")
-  completedBy     String?          @map("completed_by")
-  notes           String?
-  createdAt       DateTime         @default(now()) @map("created_at")
+  id           Int              @id @default(autoincrement())
+  onboardingId Int              @map("onboarding_id")
+  stepOrder    Int              @map("step_order")
+  stepKey      String           @map("step_key")
+  stepLabel    String           @map("step_label")
+  isCompleted  Boolean          @default(false) @map("is_completed")
+  completedAt  DateTime?        @map("completed_at")
+  completedBy  String?          @map("completed_by")
+  notes        String?
+  createdAt    DateTime         @default(now()) @map("created_at")
 
-  onboarding      OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  onboarding OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@unique([onboardingId, stepKey])
   @@map("onboarding_steps")
 }
 
 model OnboardingDocument {
-  id              Int              @id @default(autoincrement())
-  onboardingId    Int              @map("onboarding_id")
-  docType         String           @map("doc_type")
-  docLabel        String           @map("doc_label")
-  status          OnboardingDocStatus @default(pending)
-  fileUrl         String?          @db.Text @map("file_url")
-  fileName        String?          @map("file_name")
-  notes           String?
-  verifiedAt      DateTime?        @map("verified_at")
-  verifiedBy      String?          @map("verified_by")
-  createdAt       DateTime         @default(now()) @map("created_at")
+  id           Int              @id @default(autoincrement())
+  onboardingId Int              @map("onboarding_id")
+  docType      String           @map("doc_type")
+  docLabel     String           @map("doc_label")
+  status       OnboardingDocStatus @default(pending)
+  fileUrl      String?          @db.Text @map("file_url")
+  fileName     String?          @map("file_name")
+  notes        String?
+  verifiedAt   DateTime?        @map("verified_at")
+  verifiedBy   String?          @map("verified_by")
+  createdAt    DateTime         @default(now()) @map("created_at")
 
-  onboarding      OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  onboarding OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_documents")
 }
 
 model OnboardingEquipment {
-  id              Int              @id @default(autoincrement())
-  onboardingId    Int              @map("onboarding_id")
-  equipType       String           @map("equip_type")
-  equipName       String           @map("equip_name")
-  serialNumber    String?          @map("serial_number")
-  notes           String?
-  assignedAt      DateTime?        @map("assigned_at")
-  returnedAt      DateTime?        @map("returned_at")
-  createdAt       DateTime         @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  onboardingId Int      @map("onboarding_id")
+  equipType    String   @map("equip_type")
+  equipName    String   @map("equip_name")
+  serialNumber String?  @map("serial_number")
+  notes        String?
+  assignedAt   DateTime? @map("assigned_at")
+  returnedAt   DateTime? @map("returned_at")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  onboarding      OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  onboarding OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_equipment")
 }
 
 model OnboardingTraining {
-  id              Int              @id @default(autoincrement())
-  onboardingId    Int              @map("onboarding_id")
-  trainingName    String           @map("training_name")
-  trainer         String?
-  scheduledDate   String?          @map("scheduled_date")
-  completedDate   String?          @map("completed_date")
-  status          String           @default("scheduled") // scheduled | completed | cancelled
-  notes           String?
-  createdAt       DateTime         @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  onboardingId Int      @map("onboarding_id")
+  trainingName String   @map("training_name")
+  trainer      String?
+  scheduledDate String? @map("scheduled_date")
+  completedDate String? @map("completed_date")
+  status       String   @default("scheduled")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  onboarding      OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  onboarding OnboardingRecord @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_training")
 }

@@ -1,14 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
-const SESSION_COOKIE = "admin_session";
-const SESSION_SECRET = "hr-attendance-admin-2024";
+export async function GET() {
+  const session = await getSession();
 
-export async function GET(request: NextRequest) {
-  const session = request.cookies.get(SESSION_COOKIE);
-  
-  if (session?.value === SESSION_SECRET) {
-    return NextResponse.json({ loggedIn: true });
+  if (!session) {
+    return NextResponse.json({ loggedIn: false });
   }
-  
-  return NextResponse.json({ loggedIn: false });
+
+  let companyName: string | undefined;
+
+  if (session.companyId) {
+    const company = await prisma.company.findUnique({
+      where: { id: session.companyId },
+    });
+    companyName = company?.name;
+  }
+
+  return NextResponse.json({
+    loggedIn: true,
+    role: session.role,
+    companyId: session.companyId,
+    companyName,
+    userId: session.userId,
+  });
 }

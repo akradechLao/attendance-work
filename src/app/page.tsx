@@ -30,13 +30,15 @@ interface AttendanceRecord {
 interface LeaveRecord {
   id: number;
   empId: number;
-  leaveType: string;
+  companyId: number;
+  leaveTypeId: number;
   startDate: string;
   endDate: string;
   reason: string;
   status: string;
   createdAt: Date;
-  employee: { id: number; name: string; groupType: string };
+  employee: { id: number; name: string; groupType: string; companyId: number };
+  leaveType: { id: number; name: string };
 }
 
 export default function HRDashboard() {

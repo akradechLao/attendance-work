@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import fs from "fs";
 import path from "path";
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { PDFDocument, rgb } = await import("pdf-lib");
     const fontkit = (await import("@pdf-lib/fontkit")).default;
 
@@ -18,19 +24,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "startDate and endDate are required" }, { status: 400 });
     }
 
-    const whereClause = empId ? { id: empId } : {};
-    const employees = await prisma.employee.findMany({ where: whereClause, orderBy: { id: "asc" } });
+    const where: any = {};
+    if (empId) where.id = empId;
+    if (session.role === "employee" && session.companyId) {
+      where.companyId = session.companyId;
+    }
+
+    const employees = await prisma.employee.findMany({ where, orderBy: { id: "asc" } });
+
+    const employeeIds = employees.map((e) => e.id);
 
     const records = await prisma.attendanceLog.findMany({
       where: {
-        ...(empId ? { empId } : {}),
+        empId: { in: employeeIds },
         date: { gte: startDate, lte: endDate },
       },
     });
 
     const leaves = await prisma.leaveRequest.findMany({
       where: {
-        ...(empId ? { empId } : {}),
+        empId: { in: employeeIds },
         status: { not: "rejected" },
         OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
       },
@@ -40,7 +53,7 @@ export async function GET(request: NextRequest) {
     try {
       wfhRecords = await prisma.wfhRecord.findMany({
         where: {
-          ...(empId ? { empId } : {}),
+          empId: { in: employeeIds },
           date: { gte: startDate, lte: endDate },
           status: { not: "rejected" },
         },

@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const where: any = {};
+    if (session.role === "employee" && session.companyId) {
+      where.companyId = session.companyId;
+    }
+
     const locations = await prisma.officeLocation.findMany({
+      where,
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ success: true, data: locations });
@@ -17,8 +29,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || session.role !== "admin") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { name, latitude, longitude, radiusMeters } = body;
+    const { name, latitude, longitude, radiusMeters, companyId } = body;
 
     if (!name || latitude == null || longitude == null) {
       return NextResponse.json(
@@ -27,8 +44,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const targetCompanyId = companyId || session.companyId || 1;
+
     const location = await prisma.officeLocation.create({
       data: {
+        companyId: targetCompanyId,
         name,
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),

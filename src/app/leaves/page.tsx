@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { getAllEmployees } from "@/lib/actions";
 import { createLeave, getAllLeaves, deleteLeave, LeaveRecord } from "@/lib/leave-actions";
-import { LEAVE_TYPES, TOTAL_LEAVE_QUOTAS } from "@/lib/leave-constants";
+import { LEAVE_TYPES } from "@/lib/leave-constants";
 
 interface Employee {
   id: number;
@@ -15,7 +15,8 @@ export default function LeaveManagement() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<number | null>(null);
-  const [leaveType, setLeaveType] = useState("sick");
+  const [leaveTypeId, setLeaveTypeId] = useState<number>(0);
+  const [availableLeaveTypes, setAvailableLeaveTypes] = useState<{ id: number; name: string; advanceDays: number; quotaMonthly: number; quotaDaily: number; quotaContract: number }[]>([]);
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const [reason, setReason] = useState("");
@@ -25,6 +26,9 @@ export default function LeaveManagement() {
   useEffect(() => {
     getAllEmployees().then(setEmployees).catch(() => {});
     getAllLeaves().then(setLeaves).catch(() => {});
+    fetch("/api/leave-types").then((r) => r.json()).then((data) => {
+      if (data.success) setAvailableLeaveTypes(data.data);
+    }).catch(() => {});
   }, []);
 
   const currentYear = new Date().getFullYear();
@@ -39,13 +43,19 @@ export default function LeaveManagement() {
       const lEnd = new Date(Math.min(new Date(leave.endDate).getTime(), new Date(currentYear, 11, 31).getTime()));
       const days = Math.ceil((lEnd.getTime() - lStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       if (days > 0) {
-        usage[leave.empId][leave.leaveType] = (usage[leave.empId][leave.leaveType] || 0) + days;
+        const typeName = typeof leave.leaveType === "string" ? leave.leaveType : leave.leaveType?.name || "";
+        usage[leave.empId][typeName] = (usage[leave.empId][typeName] || 0) + days;
       }
     }
     return usage;
   }, [leaves, currentYear]);
 
   const selectedEmpLeaveUsage = selectedEmpId ? (leaveUsage[selectedEmpId] || {}) : {};
+
+  function getLeaveTypeName(typeName: string): string {
+    const lt = availableLeaveTypes.find((l) => l.name === typeName);
+    return lt ? lt.name : typeName;
+  }
 
   const handleSubmit = async () => {
     if (!selectedEmpId || !reason.trim()) {
@@ -54,7 +64,7 @@ export default function LeaveManagement() {
     }
     setLoading(true);
     setMessage(null);
-    const result = await createLeave(selectedEmpId, leaveType, startDate, endDate, reason.trim());
+    const result = await createLeave(selectedEmpId, leaveTypeId, startDate, endDate, reason.trim());
     setMessage({ type: result.success ? "success" : "error", text: result.message });
     setLoading(false);
     if (result.success) {
@@ -108,13 +118,14 @@ export default function LeaveManagement() {
               <div className="rounded-lg bg-cream/50 p-3">
                 <p className="text-xs font-medium text-navy/60 mb-2">สิทธิ์ลาปี {currentYear}</p>
                 <div className="space-y-1">
-                  {Object.entries(TOTAL_LEAVE_QUOTAS).map(([type, quota]) => {
-                    const used = selectedEmpLeaveUsage[type] || 0;
+                  {availableLeaveTypes.map((lt) => {
+                    const used = selectedEmpLeaveUsage[lt.name] || 0;
+                    const quota = lt.quotaMonthly;
                     const remaining = quota - used;
-                    const typeInfo = LEAVE_TYPES[type];
+                    const typeInfo = LEAVE_TYPES[lt.name];
                     if (!typeInfo) return null;
                     return (
-                      <div key={type} className="flex items-center justify-between text-xs">
+                      <div key={lt.id} className="flex items-center justify-between text-xs">
                         <span className={`${typeInfo.color} rounded-full px-1.5 py-0.5 font-medium`}>{typeInfo.label}</span>
                         <span className={remaining > 0 ? "text-green-600" : "text-red-500"}>
                           {used}/{quota} วัน
@@ -130,11 +141,12 @@ export default function LeaveManagement() {
               <label className="block text-sm font-medium text-navy/70">ประเภทลา</label>
               <select
                 className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-3 py-2 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-                value={leaveType}
-                onChange={(e) => setLeaveType(e.target.value)}
+                value={leaveTypeId}
+                onChange={(e) => setLeaveTypeId(Number(e.target.value))}
               >
-                {Object.entries(LEAVE_TYPES).map(([key, val]) => (
-                  <option key={key} value={key}>{val.label}</option>
+                <option value={0}>-- เลือกประเภทลา --</option>
+                {availableLeaveTypes.map((lt) => (
+                  <option key={lt.id} value={lt.id}>{lt.name}</option>
                 ))}
               </select>
             </div>
@@ -195,7 +207,8 @@ export default function LeaveManagement() {
           ) : (
             <div className="space-y-3">
               {leaves.map((leave) => {
-                const typeInfo = LEAVE_TYPES[leave.leaveType] || { label: leave.leaveType, color: "bg-gray-100 text-gray-800" };
+                const leaveTypeName = typeof leave.leaveType === "string" ? leave.leaveType : leave.leaveType?.name || "ไม่ทราบ";
+                const typeInfo = LEAVE_TYPES[leaveTypeName] || { label: leaveTypeName, color: "bg-gray-100 text-gray-800" };
                 const lStart = new Date(leave.startDate);
                 const lEnd = new Date(leave.endDate);
                 const days = Math.ceil((lEnd.getTime() - lStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;

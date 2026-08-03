@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node --import tsx scripts/cleanup-db.mts",
-    "build": "node --import tsx scripts/cleanup-db.mts && prisma db push --accept-data-loss && prisma generate && node --import tsx prisma/seed.mts && next build",
+    "prebuild": "echo skipping cleanup",
+    "build": "prisma db push --force-reset --accept-data-loss && prisma generate && node --import tsx prisma/seed.mts && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",
@@ -21,6 +21,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "date-fns": "^4.4.0",
+    "jose": "^6.2.7",
     "next": "16.2.9",
     "pdf-lib": "^1.17.1",
     "pg": "^8.22.0",

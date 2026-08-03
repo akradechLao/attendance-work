@@ -1,28 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyApiKey } from "@/app/api/auth";
+import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
-  const authError = verifyApiKey(request);
-  if (authError) return authError;
-
-  const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date");
-  const startDate = searchParams.get("start");
-  const endDate = searchParams.get("end");
-
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date");
+    const startDate = searchParams.get("start");
+    const endDate = searchParams.get("end");
+
+    const where: any = {};
+    if (session.role === "employee" && session.companyId) {
+      where.employee = { companyId: session.companyId };
+    }
+
     let records;
 
     if (date) {
       records = await prisma.attendanceLog.findMany({
-        where: { date },
+        where: { ...where, date },
         include: { employee: true },
         orderBy: { checkIn: "asc" },
       });
     } else if (startDate && endDate) {
       records = await prisma.attendanceLog.findMany({
         where: {
+          ...where,
           date: { gte: startDate, lte: endDate },
         },
         include: { employee: true },
@@ -31,7 +39,7 @@ export async function GET(request: NextRequest) {
     } else {
       const today = new Date().toISOString().split("T")[0];
       records = await prisma.attendanceLog.findMany({
-        where: { date: today },
+        where: { ...where, date: today },
         include: { employee: true },
         orderBy: { checkIn: "asc" },
       });
@@ -59,16 +67,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     if (body.action === "wfh-usage") {
       const now = new Date();
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const where: any = {
+        date: { startsWith: month },
+        status: { not: "rejected" },
+      };
+
+      if (session.role === "employee" && session.companyId) {
+        where.employee = { companyId: session.companyId };
+      }
+
       const records = await prisma.wfhRecord.findMany({
-        where: {
-          date: { startsWith: month },
-          status: { not: "rejected" },
-        },
+        where,
         select: { empId: true },
       });
       const usage: Record<number, number> = {};

@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-function checkAuth(request: NextRequest): boolean {
-  const apiKey = request.headers.get("x-api-key");
-  if (apiKey === process.env.API_KEY) return true;
-  const session = request.cookies.get("admin_session");
-  if (session && session.value === "hr-attendance-admin-2024") return true;
-  return false;
-}
+import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
-    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const startDate = searchParams.get("start");
-  const endDate = searchParams.get("end");
-
   try {
-    let where = {};
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get("start");
+    const endDate = searchParams.get("end");
+
+    let where: any = {};
+
+    if (session.role === "employee" && session.companyId) {
+      where.companyId = session.companyId;
+    }
 
     if (startDate && endDate) {
-      where = { workDate: { gte: startDate, lte: endDate } };
+      where.workDate = { gte: startDate, lte: endDate };
     } else {
       const today = new Date().toISOString().split("T")[0];
       const startOfWeek = new Date(today);
@@ -30,11 +28,9 @@ export async function GET(request: NextRequest) {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(endOfWeek.getDate() + 6);
 
-      where = {
-        workDate: {
-          gte: startOfWeek.toISOString().split("T")[0],
-          lte: endOfWeek.toISOString().split("T")[0],
-        },
+      where.workDate = {
+        gte: startOfWeek.toISOString().split("T")[0],
+        lte: endOfWeek.toISOString().split("T")[0],
       };
     }
 
@@ -50,7 +46,8 @@ export async function GET(request: NextRequest) {
       employeeName: s.employee.name,
       groupType: s.employee.groupType,
       workDate: s.workDate,
-      shiftType: s.shiftType,
+      shiftCode: s.shiftCode,
+      dayType: s.dayType,
     }));
 
     return NextResponse.json({ success: true, data });
@@ -63,17 +60,24 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) {
-    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const session = await getSession();
+    if (!session || session.role !== "admin") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { action, weekStart } = body;
+    const { action, weekStart, companyId } = body;
+
+    const targetCompanyId = companyId || session.companyId;
 
     if (action === "auto-book-weekdays" && weekStart) {
+      const where: any = {};
+      if (targetCompanyId) where.companyId = targetCompanyId;
+
       const employees = await prisma.employee.findMany({
-        select: { id: true, groupType: true },
+        where,
+        select: { id: true, groupType: true, companyId: true },
       });
 
       const dates: string[] = [];
@@ -89,13 +93,18 @@ export async function POST(request: NextRequest) {
       let count = 0;
       for (const emp of employees) {
         for (const date of dates) {
-          const shiftType = emp.groupType === "B" ? "ot" : "normal";
           const existing = await prisma.shiftSchedule.findUnique({
             where: { empId_workDate: { empId: emp.id, workDate: date } },
           });
           if (!existing) {
             await prisma.shiftSchedule.create({
-              data: { empId: emp.id, workDate: date, shiftType },
+              data: {
+                companyId: emp.companyId,
+                empId: emp.id,
+                workDate: date,
+                shiftCode: "WC0002",
+                dayType: "working",
+              },
             });
             count++;
           }
@@ -106,12 +115,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "toggle-weekend" && body.empId && body.workDate) {
-      const { empId, workDate, shiftType } = body;
+      const { empId, workDate, shiftCode } = body;
       const existing = await prisma.shiftSchedule.findUnique({
         where: { empId_workDate: { empId, workDate } },
       });
 
-      if (shiftType === "off") {
+      if (shiftCode === "off") {
         if (existing) {
           await prisma.shiftSchedule.delete({
             where: { empId_workDate: { empId, workDate } },
@@ -123,11 +132,18 @@ export async function POST(request: NextRequest) {
       if (existing) {
         await prisma.shiftSchedule.update({
           where: { empId_workDate: { empId, workDate } },
-          data: { shiftType },
+          data: { shiftCode: shiftCode || "WC0002" },
         });
       } else {
+        const emp = await prisma.employee.findUnique({ where: { id: empId } });
         await prisma.shiftSchedule.create({
-          data: { empId, workDate, shiftType },
+          data: {
+            companyId: emp?.companyId || targetCompanyId || 1,
+            empId,
+            workDate,
+            shiftCode: shiftCode || "WC0002",
+            dayType: "working",
+          },
         });
       }
 

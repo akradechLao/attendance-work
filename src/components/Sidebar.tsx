@@ -28,16 +28,19 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [companyName, setCompanyName] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
         setIsLoggedIn(data.loggedIn);
+        setCompanyName(data.companyName || null);
         setChecking(false);
       })
       .catch(() => {
         setIsLoggedIn(false);
+        setCompanyName(null);
         setChecking(false);
       });
   }, []);
@@ -55,7 +58,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
         className="fixed top-4 left-4 z-50 rounded-lg gradient-navy p-2 text-white shadow-navy lg:hidden"
@@ -69,7 +71,6 @@ export default function Sidebar() {
         </svg>
       </button>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -77,7 +78,6 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`fixed left-0 top-0 z-40 flex h-screen w-60 flex-col gradient-navy shadow-navy transition-transform duration-300 lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -89,6 +89,9 @@ export default function Sidebar() {
               <span className="text-gradient-gold">HR</span>
               <span className="text-white"> Attendance</span>
             </h1>
+            {companyName && (
+              <p className="text-[10px] text-white/60 mt-0.5 truncate max-w-[200px]">{companyName}</p>
+            )}
             <div className="mt-1 h-0.5 w-10 mx-auto gradient-gold rounded-full" />
           </div>
         </div>
@@ -143,11 +146,11 @@ export default function Sidebar() {
               <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
-              เข้าสู่ระบบ Admin
+              เข้าสู่ระบบ
             </button>
           )}
           <div className="text-center text-[10px] text-white/40">
-            v1.0
+            v2.0
           </div>
         </div>
       </aside>

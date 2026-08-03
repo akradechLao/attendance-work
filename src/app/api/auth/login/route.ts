@@ -1,51 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCredentials } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { createSession } from "@/lib/session";
 import { sendTelegramMessage } from "@/lib/telegram";
-
-const SESSION_COOKIE = "admin_session";
-const SESSION_SECRET = "hr-attendance-admin-2024";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, password } = body;
+    const { loginType, username, password, companyId, employeeCode, pin } = body;
 
-    if (!username || !password) {
-      return NextResponse.json(
-        { success: false, message: "กรุณากรอก username และ password" },
-        { status: 400 }
-      );
+    if (loginType === "admin") {
+      if (!username || !password) {
+        return NextResponse.json(
+          { success: false, message: "กรุณากรอก username และ password" },
+          { status: 400 }
+        );
+      }
+
+      const user = await prisma.adminUser.findFirst({
+        where: { username, password },
+      });
+
+      if (!user) {
+        return NextResponse.json(
+          { success: false, message: "Username หรือ Password ไม่ถูกต้อง" },
+          { status: 401 }
+        );
+      }
+
+      await createSession({
+        userId: user.id,
+        role: "admin",
+        companyId: user.companyId || undefined,
+      });
+
+      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+      const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      try { sendTelegramMessage(`🔐 <b>Admin Login</b> - ${time}`); } catch {}
+
+      return NextResponse.json({
+        success: true,
+        message: "Login สำเร็จ",
+        redirect: "/",
+      });
     }
 
-    if (!await verifyCredentials(username, password)) {
-      return NextResponse.json(
-        { success: false, message: "Username หรือ Password ไม่ถูกต้อง" },
-        { status: 401 }
-      );
+    if (loginType === "employee") {
+      if (!companyId || !employeeCode || !pin) {
+        return NextResponse.json(
+          { success: false, message: "กรุณากรอกข้อมูลให้ครบถ้วน" },
+          { status: 400 }
+        );
+      }
+
+      const employee = await prisma.employee.findFirst({
+        where: {
+          companyId: Number(companyId),
+          employeeCode,
+          pin,
+        },
+      });
+
+      if (!employee) {
+        return NextResponse.json(
+          { success: false, message: "รหัสพนักงานหรือ PIN ไม่ถูกต้อง" },
+          { status: 401 }
+        );
+      }
+
+      await createSession({
+        userId: employee.id,
+        role: "employee",
+        companyId: employee.companyId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Login สำเร็จ",
+        redirect: "/employee",
+      });
     }
 
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-
-    try { sendTelegramMessage(`🔐 <b>Admin Login</b> - ${time}`); } catch {}
-
-    const isSecure = request.url.startsWith("https");
-
-    const response = NextResponse.json({
-      success: true,
-      message: "Login สำเร็จ",
-      redirect: "/",
-    });
-
-    response.cookies.set(SESSION_COOKIE, SESSION_SECRET, {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24,
-      path: "/",
-    });
-
-    return response;
+    return NextResponse.json(
+      { success: false, message: "ข้อมูลไม่ถูกต้อง" },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
