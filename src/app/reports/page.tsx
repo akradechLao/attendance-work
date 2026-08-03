@@ -7,6 +7,7 @@ import {
   getOtSummary,
 } from "@/lib/actions";
 import { LEAVE_TYPES } from "@/lib/leave-constants";
+import SearchableSelect from "@/components/SearchableSelect";
 
 interface EmployeeStats {
   empId: number;
@@ -287,16 +288,16 @@ export default function ReportsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <SearchableSelect
+            options={stats.map((emp) => ({
+              value: emp.empId,
+              label: emp.name,
+            }))}
             value={pdfExportEmpId || ""}
-            onChange={(e) => setPdfExportEmpId(e.target.value ? Number(e.target.value) : null)}
-            className="rounded-lg border border-cream-dark bg-white px-3 py-2.5 text-sm text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-          >
-            <option value="">ทุกคน</option>
-            {stats.map((emp) => (
-              <option key={emp.empId} value={emp.empId}>{emp.name}</option>
-            ))}
-          </select>
+            onChange={(v) => setPdfExportEmpId(v ? Number(v) : null)}
+            placeholder="ทุกคน"
+            searchPlaceholder="พิมพ์ชื่อพนักงาน..."
+          />
           <button
             onClick={handleExportPdf}
             disabled={exportingPdf || loading}

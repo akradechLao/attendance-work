@@ -8,10 +8,12 @@ import {
   getWfhRecords,
   getWfhOfMonthBulk,
 } from "@/lib/actions";
+import SearchableSelect from "@/components/SearchableSelect";
 
 interface Employee {
   id: number;
   name: string;
+  employeeCode: string | null;
   groupType: "A" | "B";
   wfhQuota: number;
 }
@@ -137,18 +139,21 @@ export default function WfhPage() {
           <form onSubmit={handleRequest} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-navy/70">พนักงาน</label>
-              <select
+              <SearchableSelect
+                options={employees.map((emp) => {
+                  const used = wfhUsage[emp.id] || 0;
+                  return {
+                    value: emp.id,
+                    label: `${emp.employeeCode ? emp.employeeCode + " - " : ""}${emp.name}`,
+                    suffix: `ใช้ไป ${used}/${emp.wfhQuota} วัน`,
+                    disabled: used >= emp.wfhQuota,
+                  };
+                })}
                 value={selectedEmp}
-                onChange={(e) => setSelectedEmp(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-              >
-                <option value={0}>-- เลือกพนักงาน --</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id} disabled={(wfhUsage[emp.id] || 0) >= emp.wfhQuota}>
-                    {emp.name} (ใช้ไป {(wfhUsage[emp.id] || 0)}/{emp.wfhQuota} วัน)
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setSelectedEmp(Number(v))}
+                placeholder="-- เลือกพนักงาน --"
+                searchPlaceholder="พิมพ์ชื่อหรือรหัสพนักงาน..."
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-navy/70">วันที่ต้องการ WFH (วันเสาร์)</label>

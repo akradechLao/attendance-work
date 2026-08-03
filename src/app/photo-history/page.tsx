@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getAttendanceWithPhotos, getAllEmployees } from "@/lib/actions";
 import { getPhotoSrc } from "@/lib/photo-utils";
+import SearchableSelect from "@/components/SearchableSelect";
 
 interface PhotoRecord {
   id: number;
@@ -20,6 +21,7 @@ interface PhotoRecord {
 interface Employee {
   id: number;
   name: string;
+  employeeCode: string | null;
 }
 
 export default function PhotoHistoryPage() {
@@ -80,18 +82,19 @@ export default function PhotoHistoryPage() {
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-navy/70">พนักงาน</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 0, label: "ทุกคน" },
+                ...employees.map((emp) => ({
+                  value: emp.id,
+                  label: `${emp.employeeCode ? emp.employeeCode + " - " : ""}${emp.name}`,
+                })),
+              ]}
               value={selectedEmp}
-              onChange={(e) => setSelectedEmp(Number(e.target.value))}
-              className="mt-1 rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-            >
-              <option value={0}>ทุกคน</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setSelectedEmp(Number(v))}
+              placeholder="ทุกคน"
+              searchPlaceholder="พิมพ์ชื่อหรือรหัสพนักงาน..."
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-navy/70">จากวันที่</label>

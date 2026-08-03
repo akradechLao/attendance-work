@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { checkIn, checkOut, getAllEmployees, getTodayAttendance, getEmployeeWeeklyStats } from "@/lib/actions";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { getPhotoSrc } from "@/lib/photo-utils";
+import SearchableSelect from "@/components/SearchableSelect";
 
 interface Employee {
   id: number;
   name: string;
+  employeeCode: string | null;
   groupType: "A" | "B";
   wfhQuota: number;
   preferredOffDay: string | null;
@@ -220,18 +222,17 @@ export default function EmployeePortal() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <div className="rounded-xl border border-cream-dark bg-white p-6 shadow-gold">
           <h2 className="mb-4 text-lg font-semibold text-navy">เลือกพนักงาน</h2>
-          <select
-            className="w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+          <SearchableSelect
+            options={employees.map((emp) => ({
+              value: emp.id,
+              label: `${emp.employeeCode ? emp.employeeCode + " - " : ""}${emp.name}`,
+              suffix: `กลุ่ม ${emp.groupType}`,
+            }))}
             value={selectedEmpId || ""}
-            onChange={(e) => setSelectedEmpId(Number(e.target.value) || null)}
-          >
-            <option value="">-- เลือกพนักงาน --</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name} (กลุ่ม {emp.groupType})
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setSelectedEmpId(Number(v) || null)}
+            placeholder="-- เลือกพนักงาน --"
+            searchPlaceholder="พิมพ์ชื่อหรือรหัสพนักงาน..."
+          />
 
           {selectedEmployee && (
             <div className="mt-4 rounded-lg gradient-gold-subtle p-4 border border-gold/20">
