@@ -37,6 +37,11 @@ function CheckinContent() {
   const [otLoading, setOtLoading] = useState(false);
   const [otMessage, setOtMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Stats
+  const [showStats, setShowStats] = useState(false);
+  const [statsData, setStatsData] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -196,6 +201,19 @@ function CheckinContent() {
     }
   };
 
+  const handleShowStats = async () => {
+    if (!employee) return;
+    setShowStats(true);
+    setLoadingStats(true);
+    try {
+      const res = await fetch(`/api/employee-stats?empId=${employee.id}`);
+      const data = await res.json();
+      if (data.success) setStatsData(data.data);
+    } catch {} finally {
+      setLoadingStats(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream">
@@ -346,6 +364,22 @@ function CheckinContent() {
               </div>
             </button>
 
+            {/* สถิติของฉัน */}
+            <button
+              onClick={handleShowStats}
+              className="flex w-full items-center gap-3 rounded-xl border border-cream-dark bg-white p-4 shadow-gold hover:bg-cream/50 transition-colors text-left"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50">
+                <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-navy">สถิติของฉัน</p>
+                <p className="text-[10px] text-navy/40">ดูประวัติเข้างานและสรุป</p>
+              </div>
+            </button>
+
             {/* ติดต่อหัวหน้า */}
             {employee?.supervisorName && (
               <div className="rounded-xl border border-cream-dark bg-white p-4 shadow-gold">
@@ -459,6 +493,83 @@ function CheckinContent() {
                 >
                   {otLoading ? "กำลังส่ง..." : "ส่งคำขอ"}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Modal */}
+        {showStats && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-sm rounded-xl border border-cream-dark bg-white shadow-navy max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="gradient-navy px-5 py-4 flex items-center justify-between flex-shrink-0">
+                <h3 className="text-base font-semibold text-white">สถิติของฉัน</h3>
+                <button
+                  onClick={() => { setShowStats(false); setStatsData(null); }}
+                  className="rounded-lg bg-white/20 p-1.5 text-white hover:bg-white/30 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto p-5">
+                {loadingStats ? (
+                  <div className="text-center py-8 text-navy/40">กำลังโหลด...</div>
+                ) : statsData ? (
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-navy">{statsData.employee.name}</p>
+                      <p className="text-xs text-navy/40">
+                        {statsData.employee.employeeCode && <span className="mr-1">{statsData.employee.employeeCode}</span>}
+                        {statsData.employee.department || `กลุ่ม ${statsData.employee.groupType}`}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-center">
+                        <div className="text-lg font-bold text-blue-600">{statsData.summary.totalDays}</div>
+                        <div className="text-[9px] text-blue-500">วันรวม</div>
+                      </div>
+                      <div className="rounded-lg bg-green-50 border border-green-200 p-2 text-center">
+                        <div className="text-lg font-bold text-green-600">{statsData.summary.onTimeDays}</div>
+                        <div className="text-[9px] text-green-500">ตรงเวลา</div>
+                      </div>
+                      <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-center">
+                        <div className="text-lg font-bold text-red-600">{statsData.summary.lateDays}</div>
+                        <div className="text-[9px] text-red-500">สาย</div>
+                      </div>
+                      <div className="rounded-lg bg-orange-50 border border-orange-200 p-2 text-center">
+                        <div className="text-lg font-bold text-orange-600">{statsData.summary.monthTotal}</div>
+                        <div className="text-[9px] text-orange-500">เดือนนี้</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-navy/50 mb-2">ประวัติเข้างาน 14 วันล่าสุด</p>
+                      <div className="space-y-1.5">
+                        {statsData.recentRecords.map((r: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between rounded-lg bg-cream/50 px-3 py-2 text-xs">
+                            <span className="text-navy/70">{r.date}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-navy/60">{r.checkIn || "-"}</span>
+                              <span className="text-navy/30">→</span>
+                              <span className="text-navy/60">{r.checkOut || "-"}</span>
+                              <span className={`font-medium ${r.status === "late" ? "text-red-600" : r.status === "on_time" ? "text-green-600" : "text-navy/30"}`}>
+                                {r.status === "late" ? "สาย" : r.status === "on_time" ? "✓" : "-"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {statsData.recentRecords.length === 0 && (
+                          <p className="text-center text-xs text-navy/30 py-4">ยังไม่มีประวัติ</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-navy/40">ไม่สามารถโหลดข้อมูลได้</div>
+                )}
               </div>
             </div>
           </div>
