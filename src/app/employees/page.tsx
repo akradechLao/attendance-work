@@ -13,6 +13,10 @@ interface Employee {
   companyId: number;
   company?: { name: string };
   groupType: "A" | "B";
+  department: string | null;
+  division: string | null;
+  position: string;
+  reportsTo: number | null;
   wfhQuota: number;
   preferredOffDay: string | null;
 }
@@ -20,12 +24,20 @@ interface Employee {
 interface EmployeeForm {
   name: string;
   groupType: "A" | "B";
+  department: string;
+  division: string;
+  position: string;
+  reportsTo: string;
   preferredOffDay: string;
 }
 
 const emptyForm: EmployeeForm = {
   name: "",
   groupType: "A",
+  department: "",
+  division: "",
+  position: "employee",
+  reportsTo: "",
   preferredOffDay: "",
 };
 
@@ -99,6 +111,10 @@ export default function EmployeesPage() {
     setForm({
       name: emp.name,
       groupType: emp.groupType,
+      department: emp.department || "",
+      division: emp.division || "",
+      position: emp.position || "employee",
+      reportsTo: emp.reportsTo ? String(emp.reportsTo) : "",
       preferredOffDay: emp.preferredOffDay || "",
     });
     setEditId(emp.id);
@@ -115,9 +131,16 @@ export default function EmployeesPage() {
     setSubmitting(true);
     try {
       const preferredOffDay = form.preferredOffDay || null;
+      const reportsTo = form.reportsTo ? Number(form.reportsTo) : null;
+      const opts = {
+        department: form.department || null,
+        division: form.division || null,
+        position: form.position,
+        reportsTo,
+      };
       const result = editId
-        ? await updateEmployee(editId, form.name.trim(), form.groupType, preferredOffDay)
-        : await createEmployee(form.name.trim(), form.groupType, preferredOffDay);
+        ? await updateEmployee(editId, form.name.trim(), form.groupType, preferredOffDay, opts)
+        : await createEmployee(form.name.trim(), form.groupType, preferredOffDay, opts);
 
       if (result.success) {
         showMessage(result.message, "success");
@@ -209,6 +232,51 @@ export default function EmployeesPage() {
                   <option value="A">A</option>
                   <option value="B">B</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">ฝ่าย (Division)</label>
+                <input
+                  type="text"
+                  value={form.division}
+                  onChange={(e) => setForm({ ...form, division: e.target.value })}
+                  placeholder="เช่น ฝ่ายผลิต, ฝ่ายขาย"
+                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">แผนก (Department)</label>
+                <input
+                  type="text"
+                  value={form.department}
+                  onChange={(e) => setForm({ ...form, department: e.target.value })}
+                  placeholder="เช่น แผนกผลิต, แผนกบัญชี"
+                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">ระดับตำแหน่ง</label>
+                <select
+                  value={form.position}
+                  onChange={(e) => setForm({ ...form, position: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+                >
+                  <option value="employee">พนักงาน</option>
+                  <option value="team_lead">หัวหน้างาน</option>
+                  <option value="dept_manager">ผู้จัดการแผนก</option>
+                  <option value="division_manager">ผู้จัดการฝ่าย</option>
+                  <option value="assistant_md">ผู้ช่วย กรรมการผู้จัดการ</option>
+                  <option value="md">กรรมการผู้จัดการ</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">หัวหน้าโดยตรง (ID)</label>
+                <input
+                  type="number"
+                  value={form.reportsTo}
+                  onChange={(e) => setForm({ ...form, reportsTo: e.target.value })}
+                  placeholder="ID ของหัวหน้า"
+                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-navy/70">วันหยุดประจำ</label>

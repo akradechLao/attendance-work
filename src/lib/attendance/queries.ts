@@ -24,6 +24,20 @@ export async function getAllEmployees() {
   const companyId = await getCompanyId();
   return prisma.employee.findMany({
     where: { ...(companyId ? { companyId } : {}) },
+    select: {
+      id: true,
+      name: true,
+      employeeCode: true,
+      groupType: true,
+      companyId: true,
+      company: true,
+      department: true,
+      division: true,
+      position: true,
+      reportsTo: true,
+      wfhQuota: true,
+      preferredOffDay: true,
+    },
     orderBy: { id: "asc" },
   });
 }

@@ -37,8 +37,8 @@ const positionLabels: Record<string, string> = {
   team_lead: "หัวหน้างาน",
   dept_manager: "ผู้จัดการแผนก",
   division_manager: "ผู้จัดการฝ่าย",
-  assistant_gm: "ผู้ช่วย กรรมการผู้จัดการ",
-  gm: "กรรมการผู้จัดการ",
+  assistant_md: "ผู้ช่วย กรรมการผู้จัดการ",
+  md: "กรรมการผู้จัดการ",
 };
 
 export default function ManagerPage() {

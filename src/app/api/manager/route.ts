@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       team_lead: 1,
       dept_manager: 2,
       division_manager: 3,
-      assistant_gm: 4,
-      gm: 5,
+      assistant_md: 4,
+      md: 5,
     };
 
     const managerLevel = positionHierarchy[manager.position] || 0;

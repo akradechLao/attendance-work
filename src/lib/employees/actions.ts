@@ -12,6 +12,10 @@ export async function createEmployee(
     companyId?: number;
     employeeCode?: string | null;
     pin?: string | null;
+    department?: string | null;
+    division?: string | null;
+    position?: string;
+    reportsTo?: number | null;
   }
 ) {
   try {
@@ -29,6 +33,10 @@ export async function createEmployee(
         companyId,
         employeeCode: options?.employeeCode || null,
         pin: options?.pin || "1234",
+        department: options?.department || null,
+        division: options?.division || null,
+        position: options?.position || "employee",
+        reportsTo: options?.reportsTo || null,
       },
     });
     revalidatePath("/employees");
@@ -48,6 +56,10 @@ export async function updateEmployee(
   options?: {
     employeeCode?: string | null;
     pin?: string | null;
+    department?: string | null;
+    division?: string | null;
+    position?: string;
+    reportsTo?: number | null;
   }
 ) {
   try {
@@ -68,6 +80,10 @@ export async function updateEmployee(
         preferredOffDay,
         ...(options?.employeeCode !== undefined ? { employeeCode: options.employeeCode || null } : {}),
         ...(options?.pin ? { pin: options.pin } : {}),
+        department: options?.department || null,
+        division: options?.division || null,
+        position: options?.position || "employee",
+        reportsTo: options?.reportsTo || null,
       },
     });
     revalidatePath("/employees");
