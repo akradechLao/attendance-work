@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import MottoBanner from "@/components/MottoBanner";
+import QrScanner from "@/components/QrScanner";
 
 interface Company {
   id: number;
   name: string;
 }
 
-export default function LoginPage() {
+function LoginContent() {
+  const searchParams = useSearchParams();
   const [loginType, setLoginType] = useState<"admin" | "employee">("employee");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
@@ -20,6 +23,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrMessage, setQrMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const sessionExpired = searchParams.get("expired") === "1";
 
   useEffect(() => {
     fetch("/api/companies")
@@ -71,6 +79,45 @@ export default function LoginPage() {
     }
   };
 
+  const handleQrScan = async (rawData: string) => {
+    setShowQrScanner(false);
+    setQrLoading(true);
+    setQrMessage(null);
+
+    try {
+      // Parse QR data format: companyId:employeeCode
+      const parts = rawData.split(":");
+      if (parts.length !== 2 || !parts[0] || !parts[1]) {
+        setQrMessage({ type: "error", text: "QR Code ไม่ถูกต้อง รูปแบบ: companyId:employeeCode" });
+        return;
+      }
+
+      const companyId = parts[0];
+      const employeeCode = parts[1];
+
+      const res = await fetch("/api/auth/qr-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, employeeCode }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setQrMessage({ type: "success", text: `สแกนสำเร็จ! ${data.employee.name}` });
+        setTimeout(() => {
+          window.location.href = data.redirect || "/employee?qr=1";
+        }, 800);
+      } else {
+        setQrMessage({ type: "error", text: data.message || "สแกนไม่สำเร็จ" });
+      }
+    } catch {
+      setQrMessage({ type: "error", text: "เกิดข้อผิดพลาดในการเชื่อมต่อ" });
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-cream px-4 py-8">
       <div className="w-full max-w-sm sm:max-w-md">
@@ -86,7 +133,63 @@ export default function LoginPage() {
 
         <MottoBanner />
 
+        {sessionExpired && (
+          <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs sm:text-sm text-amber-700 border border-amber-200">
+            Session หมดอายุ กรุณาเข้าสู่ระบบใหม่
+          </div>
+        )}
+
         <div className="rounded-xl border border-cream-dark bg-white p-6 sm:p-8 shadow-gold">
+          {/* QR Login Button - show only in employee mode */}
+          {loginType === "employee" && (
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={() => setShowQrScanner(true)}
+                disabled={qrLoading}
+                className="w-full rounded-lg border-2 border-dashed border-blue-300 bg-blue-50 px-4 py-4 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100 hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {qrLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    กำลังเข้าสู่ระบบ...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    สแกน QR Code เช็คอิน
+                  </span>
+                )}
+              </button>
+
+              {qrMessage && (
+                <div
+                  className={`mt-2 rounded-lg p-2 text-xs text-center ${
+                    qrMessage.type === "success"
+                      ? "bg-green-50 text-green-700 border border-green-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                  }`}
+                >
+                  {qrMessage.text}
+                </div>
+              )}
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-cream-dark" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white px-3 text-navy/40">หรือเข้าสู่ระบบด้วยรหัส</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 mb-5 sm:mb-6">
             <button
               type="button"
@@ -214,6 +317,20 @@ export default function LoginPage() {
           ระบบบันทึกเวลาเข้า-ออกงาน v2.0
         </div>
       </div>
+
+      {showQrScanner && <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-cream">
+        <div className="text-sm text-navy/50">กำลังโหลด...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

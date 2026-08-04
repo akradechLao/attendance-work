@@ -13,7 +13,14 @@ export async function GET() {
     });
     console.log("[api/companies] Found", companies.length, "companies");
 
-    return NextResponse.json({ success: true, data: companies });
+    // ETECH first for login priority
+    const sorted = [...companies].sort((a, b) => {
+      if (a.name === "ETECH") return -1;
+      if (b.name === "ETECH") return 1;
+      return a.id - b.id;
+    });
+
+    return NextResponse.json({ success: true, data: sorted });
   } catch (error) {
     console.error("[api/companies] Error:", error);
     return NextResponse.json(

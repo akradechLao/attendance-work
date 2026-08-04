@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { checkIn, checkOut } from "@/lib/attendance/actions";
 import { getAllEmployees, getTodayAttendance, getEmployeeWeeklyStats } from "@/lib/attendance/queries";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -32,7 +33,20 @@ interface AttendanceRecord {
   };
 }
 
-export default function EmployeePortal() {
+export default function EmployeePortalWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20 text-navy/50">กำลังโหลด...</div>
+    }>
+      <EmployeePortal />
+    </Suspense>
+  );
+}
+
+function EmployeePortal() {
+  const searchParams = useSearchParams();
+  const isQrMode = searchParams.get("qr") === "1";
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<number | null>(null);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
@@ -51,9 +65,11 @@ export default function EmployeePortal() {
     workHours: number;
   } | null>(null);
   const [loadingWeekly, setLoadingWeekly] = useState(false);
+  const [qrAutoCapture, setQrAutoCapture] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const handleConfirmActionRef = useRef<(photo?: string | null) => Promise<void>>(async () => {});
 
   const { latitude, longitude, error: geoError, getLocation } = useGeolocation();
 
@@ -61,6 +77,25 @@ export default function EmployeePortal() {
     getAllEmployees().then(setEmployees).catch(() => {});
     getTodayAttendance().then(setTodayRecords).catch(() => {});
   }, []);
+
+  // QR auto-check-in: auto select employee, open camera, capture, check-in
+  useEffect(() => {
+    if (!isQrMode || employees.length === 0) return;
+
+    // Fetch current session to get employee ID
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.loggedIn && data.role === "employee" && data.userId) {
+          setSelectedEmpId(data.userId);
+          setConfirmAction("checkin");
+          setQrAutoCapture(true);
+          setShowCamera(true);
+          startCamera();
+        }
+      })
+      .catch(() => {});
+  }, [isQrMode, employees.length]);
 
   useEffect(() => {
     if (showCamera && streamRef.current && videoRef.current && !videoRef.current.srcObject) {
@@ -92,7 +127,7 @@ export default function EmployeePortal() {
     setShowCamera(false);
   }, []);
 
-  const capturePhoto = useCallback(() => {
+  const capturePhoto = useCallback((isQr?: boolean) => {
     if (!videoRef.current || !canvasRef.current) return null;
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -105,6 +140,18 @@ export default function EmployeePortal() {
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // QR mode: extra compressed (smaller size, lower quality)
+    if (isQr) {
+      const smallCanvas = document.createElement("canvas");
+      smallCanvas.width = 200;
+      smallCanvas.height = 150;
+      const sctx = smallCanvas.getContext("2d");
+      if (sctx) {
+        sctx.drawImage(canvas, 0, 0, 200, 150);
+        return smallCanvas.toDataURL("image/jpeg", 0.3);
+      }
+    }
 
     return canvas.toDataURL("image/jpeg", 0.6);
   }, []);
@@ -205,6 +252,29 @@ export default function EmployeePortal() {
       setLoadingWeekly(false);
     }
   };
+
+  // QR auto-capture: capture photo after camera is ready
+  useEffect(() => {
+    if (!qrAutoCapture || !showCamera) return;
+    const timer = setTimeout(() => {
+      const photo = capturePhoto(true);
+      if (photo) {
+        setCapturedPhoto(photo);
+        stopCamera();
+        setQrAutoCapture(false);
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [qrAutoCapture, showCamera, capturePhoto, stopCamera]);
+
+  // Auto-submit after QR photo capture
+  useEffect(() => {
+    if (!isQrMode || !capturedPhoto || !confirmAction || loading) return;
+    const timer = setTimeout(() => {
+      handleConfirmAction(capturedPhoto);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isQrMode, capturedPhoto, confirmAction, loading]);
 
   const myTodayRecord = todayRecords.find((r) => r.employee.id === selectedEmpId);
 
@@ -397,6 +467,9 @@ export default function EmployeePortal() {
                       className="mx-auto h-48 w-full max-w-xs rounded-lg object-cover border-2 border-cream-dark sm:h-56 sm:max-w-sm"
                       style={{ transform: "scaleX(-1)" }}
                     />
+                    {qrAutoCapture ? (
+                      <p className="mt-2 text-sm text-blue-600 font-medium animate-pulse">กำลังถ่ายภาพอัตโนมัติ...</p>
+                    ) : (
                     <button
                       onClick={() => {
                         const photo = capturePhoto();
@@ -414,6 +487,7 @@ export default function EmployeePortal() {
                       </svg>
                       ถ่ายภาพ
                     </button>
+                    )}
                   </div>
                 )}
 
