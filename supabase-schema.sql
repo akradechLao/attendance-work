@@ -34,13 +34,47 @@ CREATE TABLE "employees" (
     "company_id" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     "name" TEXT NOT NULL,
     "group_type" "GroupType" NOT NULL,
+    "department" TEXT,
+    "division" TEXT,
+    "position" TEXT NOT NULL DEFAULT 'employee',
+    "level" INTEGER,
+    "has_ot" BOOLEAN NOT NULL DEFAULT false,
+    "reports_to" INTEGER,
     "wfh_quota" INTEGER NOT NULL DEFAULT 1,
     "preferred_off_day" TEXT,
     "pin" TEXT DEFAULT '1234',
     "employee_code" TEXT,
+    "supervisor_name" TEXT,
+    "supervisor_line" TEXT,
+    "supervisor_phone" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Employee indexes
+CREATE INDEX "employees_company_id_idx" ON "employees"("company_id");
+CREATE INDEX "employees_employee_code_idx" ON "employees"("employee_code");
+CREATE INDEX "employees_reports_to_idx" ON "employees"("reports_to");
+
+-- OT Requests
+CREATE TABLE "ot_requests" (
+    "id" SERIAL PRIMARY KEY,
+    "company_id" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "emp_id" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "date" TEXT NOT NULL,
+    "start_time" TEXT NOT NULL,
+    "end_time" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "approved_by" TEXT,
+    "approved_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX "ot_requests_company_id_idx" ON "ot_requests"("company_id");
+CREATE INDEX "ot_requests_emp_id_idx" ON "ot_requests"("emp_id");
+CREATE INDEX "ot_requests_status_idx" ON "ot_requests"("status");
 
 -- Attendance Logs
 CREATE TABLE "attendance_logs" (
