@@ -22,7 +22,7 @@
 
 const CONFIG = {
   // URL ของ API (แก้ไขให้ตรงกับ domain ที่ deploy ไว้)
-  // ตัวอย่าง: "https://your-app.vercel.app/api"
+  // ตัวอย่าง: "https://your-app.netlify.app/api"
   API_URL: "http://localhost:3000/api",
 
   // API Key ที่ตั้งไว้ใน .env

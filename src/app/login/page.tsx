@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import MottoBanner from "@/components/MottoBanner";
-import QrScanner from "@/components/QrScanner";
 
 interface Company {
   id: number;
@@ -40,11 +39,6 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // QR Scanner
-  const [showQrScanner, setShowQrScanner] = useState(false);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrMessage, setQrMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
   const sessionExpired = searchParams.get("expired") === "1";
 
   useEffect(() => {
@@ -58,7 +52,6 @@ function LoginContent() {
       .finally(() => setCompaniesLoading(false));
   }, []);
 
-  // Search employees when company selected and query changes
   useEffect(() => {
     if (!selectedCompanyId || !searchQuery.trim()) {
       setSearchResults([]);
@@ -79,7 +72,6 @@ function LoginContent() {
     return () => clearTimeout(timer);
   }, [selectedCompanyId, searchQuery]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -90,7 +82,6 @@ function LoginContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Reset employee when company changes
   useEffect(() => {
     setSelectedEmployee(null);
     setSearchQuery("");
@@ -103,23 +94,22 @@ function LoginContent() {
     setShowDropdown(false);
   };
 
-  // Employee check-in (no PIN, just select and confirm)
   const handleEmployeeCheckin = async () => {
     if (!selectedEmployee || !selectedCompanyId) return;
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/qr-login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: selectedCompanyId, employeeCode: selectedEmployee.employeeCode }),
+        body: JSON.stringify({ loginType: "employee", companyId: selectedCompanyId, employeeCode: selectedEmployee.employeeCode }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        window.location.href = "/employee?qr=1";
+        window.location.href = data.redirect || "/employee";
       } else {
         setError(data.message);
       }
@@ -130,7 +120,6 @@ function LoginContent() {
     }
   };
 
-  // Admin login
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -157,40 +146,6 @@ function LoginContent() {
     }
   };
 
-  // QR Login
-  const handleQrScan = async (rawData: string) => {
-    setShowQrScanner(false);
-    setQrLoading(true);
-    setQrMessage(null);
-
-    try {
-      const parts = rawData.split(":");
-      if (parts.length !== 2 || !parts[0] || !parts[1]) {
-        setQrMessage({ type: "error", text: "QR Code ไม่ถูกต้อง รูปแบบ: companyId:employeeCode" });
-        return;
-      }
-
-      const res = await fetch("/api/auth/qr-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: parts[0], employeeCode: parts[1] }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setQrMessage({ type: "success", text: `สแกนสำเร็จ! ${data.employee.name}` });
-        setTimeout(() => { window.location.href = "/employee?qr=1"; }, 800);
-      } else {
-        setQrMessage({ type: "error", text: data.message || "สแกนไม่สำเร็จ" });
-      }
-    } catch {
-      setQrMessage({ type: "error", text: "เกิดข้อผิดพลาดในการเชื่อมต่อ" });
-    } finally {
-      setQrLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-cream px-4 py-8">
       <div className="w-full max-w-sm sm:max-w-md">
@@ -213,7 +168,6 @@ function LoginContent() {
         )}
 
         <div className="rounded-xl border border-cream-dark bg-white p-6 sm:p-8 shadow-gold">
-          {/* Tab buttons */}
           <div className="flex gap-2 mb-5 sm:mb-6">
             <button
               type="button"
@@ -237,31 +191,37 @@ function LoginContent() {
 
           {loginType === "employee" ? (
             <div className="space-y-4">
-              {/* Step 1: Select Company */}
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-navy/70">
+                <label className="block text-xs sm:text-sm font-medium text-navy/70 mb-2">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-navy text-[10px] font-bold text-white">1</span>
                     เลือกบริษัท
                   </span>
                 </label>
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-3 sm:px-4 py-2.5 text-sm sm:text-base text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
-                  disabled={companiesLoading || companies.length === 0}
-                >
-                  <option value="">
-                    {companiesLoading ? "กำลังโหลดบริษัท..." : "เลือกบริษัท"}
-                  </option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                {companiesError && <p className="mt-1 text-xs text-red-600">{companiesError}</p>}
+                {companiesLoading ? (
+                  <div className="text-center py-4 text-sm text-navy/40">กำลังโหลดบริษัท...</div>
+                ) : companiesError ? (
+                  <div className="text-center py-4 text-sm text-red-500">{companiesError}</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {companies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedCompanyId(String(c.id))}
+                        className={`rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-all ${
+                          selectedCompanyId === String(c.id)
+                            ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
+                            : "border-cream-dark bg-white text-navy/70 hover:border-blue-300 hover:bg-blue-50/50"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Step 2: Search Employee */}
               {selectedCompanyId && (
                 <div ref={searchRef} className="relative">
                   <label className="block text-xs sm:text-sm font-medium text-navy/70">
@@ -310,7 +270,6 @@ function LoginContent() {
                 </div>
               )}
 
-              {/* Step 3: Confirm */}
               {selectedEmployee && (
                 <div className="rounded-lg bg-green-50 border border-green-200 p-3">
                   <p className="text-xs text-green-600 mb-1">เลือกพนักงาน:</p>
@@ -328,16 +287,6 @@ function LoginContent() {
                 </div>
               )}
 
-              {qrMessage && (
-                <div className={`rounded-lg p-2 text-xs text-center ${
-                  qrMessage.type === "success"
-                    ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
-                }`}>
-                  {qrMessage.text}
-                </div>
-              )}
-
               <button
                 onClick={handleEmployeeCheckin}
                 disabled={!selectedEmployee || loading}
@@ -345,43 +294,8 @@ function LoginContent() {
               >
                 {loading ? "กำลังเข้าสู่ระบบ..." : "เช็คอิน"}
               </button>
-
-              {/* QR Scan option */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-cream-dark" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-white px-3 text-navy/40">หรือ</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowQrScanner(true)}
-                disabled={qrLoading}
-                className="w-full rounded-lg border-2 border-dashed border-blue-300 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100 hover:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {qrLoading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    กำลังเข้าสู่ระบบ...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                    สแกน QR Code เช็คอิน
-                  </span>
-                )}
-              </button>
             </div>
           ) : (
-            /* Admin Login */
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-navy/70">Username</label>
@@ -425,8 +339,6 @@ function LoginContent() {
           ระบบบันทึกเวลาเข้า-ออกงาน v2.0
         </div>
       </div>
-
-      {showQrScanner && <QrScanner onScan={handleQrScan} onClose={() => setShowQrScanner(false)} />}
     </div>
   );
 }

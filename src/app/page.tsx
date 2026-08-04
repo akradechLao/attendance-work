@@ -128,7 +128,7 @@ export default function HRDashboard() {
             <p className="text-sm font-medium text-red-800">ตรวจสอบ:</p>
             <ul className="mt-2 space-y-1 text-sm text-red-700">
               <li>1. สร้าง database ชื่อ <code className="bg-red-100 px-1 rounded">attendance_db</code> บน Neon แล้วหรือยัง</li>
-              <li>2. DATABASE_URL ตั้งค่าถูกต้องใน Vercel แล้วหรือยัง</li>
+              <li>2. DATABASE_URL ตั้งค่าถูกต้องใน Netlify แล้วหรือยัง</li>
               <li>3. รัน <code className="bg-red-100 px-1 rounded">npx prisma db push</code> แล้วหรือยัง</li>
             </ul>
           </div>

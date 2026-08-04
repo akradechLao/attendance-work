@@ -13,11 +13,11 @@ export async function GET() {
     });
     console.log("[api/companies] Found", companies.length, "companies");
 
-    // ETECH first for login priority
+    const order = ["ETC1992", "ETECH", "STC", "NTC"];
     const sorted = [...companies].sort((a, b) => {
-      if (a.name === "ETECH") return -1;
-      if (b.name === "ETECH") return 1;
-      return a.id - b.id;
+      const ai = order.indexOf(a.name);
+      const bi = order.indexOf(b.name);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
 
     return NextResponse.json({ success: true, data: sorted });

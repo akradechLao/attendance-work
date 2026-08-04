@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getAllEmployees } from "@/lib/attendance/queries";
 import { getWfhOfMonthBulk } from "@/lib/wfh/actions";
 import { createEmployee, updateEmployee, deleteEmployee } from "@/lib/employees/actions";
-import QrGenerator from "@/components/QrGenerator";
+
 
 interface Employee {
   id: number;
@@ -39,7 +39,7 @@ export default function EmployeesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" | null }>({ text: "", type: null });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-  const [showQrGenerator, setShowQrGenerator] = useState(false);
+
 
   async function fetchData() {
     const [emps, usage] = await Promise.all([getAllEmployees(), getWfhOfMonthBulk()]);
@@ -162,20 +162,12 @@ export default function EmployeesPage() {
             <p className="mt-0.5 text-sm text-navy/50">เพิ่ม แก้ไข และลบรายชื่อพนักงาน</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowQrGenerator(true)}
-            className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100"
-          >
-            QR Code
-          </button>
-          <button
-            onClick={handleAdd}
-            className="rounded-lg gradient-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
-          >
-            + เพิ่มพนักงาน
-          </button>
-        </div>
+        <button
+          onClick={handleAdd}
+          className="rounded-lg gradient-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
+        >
+          + เพิ่มพนักงาน
+        </button>
       </div>
 
       {message.text && message.type && (
@@ -352,16 +344,6 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      {showQrGenerator && (
-        <QrGenerator
-          employees={employees.map((emp) => ({
-            ...emp,
-            companyId: (emp as any).companyId || 1,
-            company: (emp as any).company,
-          }))}
-          onClose={() => setShowQrGenerator(false)}
-        />
-      )}
     </div>
   );
 }

@@ -45,24 +45,29 @@ export async function POST(request: NextRequest) {
     }
 
     if (loginType === "employee") {
-      if (!companyId || !employeeCode || !pin) {
+      if (!companyId || !employeeCode) {
         return NextResponse.json(
           { success: false, message: "กรุณากรอกข้อมูลให้ครบถ้วน" },
           { status: 400 }
         );
       }
 
+      const whereClause: any = {
+        companyId: Number(companyId),
+        employeeCode,
+      };
+
+      if (pin) {
+        whereClause.pin = pin;
+      }
+
       const employee = await prisma.employee.findFirst({
-        where: {
-          companyId: Number(companyId),
-          employeeCode,
-          pin,
-        },
+        where: whereClause,
       });
 
       if (!employee) {
         return NextResponse.json(
-          { success: false, message: "รหัสพนักงานหรือ PIN ไม่ถูกต้อง" },
+          { success: false, message: "รหัสพนักงานไม่ถูกต้อง" },
           { status: 401 }
         );
       }
