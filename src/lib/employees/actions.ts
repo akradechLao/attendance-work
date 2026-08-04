@@ -94,7 +94,6 @@ export async function deleteEmployee(id: number) {
       prisma.shiftSchedule.deleteMany({ where: { empId: id } }),
       prisma.leaveRequest.deleteMany({ where: { empId: id } }),
       prisma.wfhRecord.deleteMany({ where: { empId: id } }),
-      prisma.onboardingRecord.deleteMany({ where: { empId: id } }),
       prisma.employee.delete({ where: { id } }),
     ]);
     revalidatePath("/employees");

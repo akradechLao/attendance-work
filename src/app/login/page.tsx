@@ -94,7 +94,7 @@ function LoginContent() {
     setShowDropdown(false);
   };
 
-  const handleEmployeeCheckin = async () => {
+  const handleEmployeeAction = async (action: "checkin" | "checkout") => {
     if (!selectedEmployee || !selectedCompanyId) return;
     setError("");
     setLoading(true);
@@ -109,7 +109,7 @@ function LoginContent() {
       const data = await res.json();
 
       if (data.success) {
-        window.location.href = data.redirect || "/employee";
+        window.location.href = `/checkin?action=${action}`;
       } else {
         setError(data.message);
       }
@@ -287,13 +287,22 @@ function LoginContent() {
                 </div>
               )}
 
-              <button
-                onClick={handleEmployeeCheckin}
-                disabled={!selectedEmployee || loading}
-                className="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "กำลังเข้าสู่ระบบ..." : "เช็คอิน"}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleEmployeeAction("checkin")}
+                  disabled={!selectedEmployee || loading}
+                  className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "กำลังเข้าสู่ระบบ..." : "เช็คอิน"}
+                </button>
+                <button
+                  onClick={() => handleEmployeeAction("checkout")}
+                  disabled={!selectedEmployee || loading}
+                  className="flex-1 rounded-lg gradient-navy px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "กำลังเข้าสู่ระบบ..." : "เช็คออก"}
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleAdminLogin} className="space-y-4">
