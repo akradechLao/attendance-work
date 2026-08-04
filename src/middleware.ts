@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
   const isApiAuth = pathname.startsWith("/api/auth");
   const isPublicApi = pathname === "/api/companies" || pathname === "/api/employees/search";
   const isApiUpload = pathname === "/api/upload";
-  const isEmployeePage = pathname.startsWith("/employee") || pathname.startsWith("/checkin");
+  const isEmployeePage = pathname.startsWith("/employee") || pathname.startsWith("/checkin") || pathname.startsWith("/supervisor");
 
   if (isApiAuth || isPublicApi || isApiUpload || isEmployeePage) {
     return NextResponse.next();

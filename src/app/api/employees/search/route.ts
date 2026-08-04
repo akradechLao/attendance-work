@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         name: true,
         employeeCode: true,
         groupType: true,
+        department: true,
       },
       orderBy: { name: "asc" },
       take: 20,

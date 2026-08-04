@@ -14,6 +14,7 @@ interface EmployeeSearchResult {
   name: string;
   employeeCode: string | null;
   groupType: string;
+  department: string | null;
 }
 
 function LoginContent() {
@@ -257,7 +258,10 @@ function LoginContent() {
                             {emp.employeeCode && <span className="text-navy/50 mr-2">{emp.employeeCode}</span>}
                             {emp.name}
                           </div>
-                          <div className="text-[10px] text-navy/40">กลุ่ม {emp.groupType}</div>
+                          <div className="text-[10px] text-navy/40">
+                            กลุ่ม {emp.groupType}
+                            {emp.department && <span className="ml-1">| {emp.department}</span>}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -277,7 +281,12 @@ function LoginContent() {
                     {selectedEmployee.employeeCode && <span className="mr-1">{selectedEmployee.employeeCode}</span>}
                     {selectedEmployee.name}
                   </p>
-                  <p className="text-[10px] text-green-600">กลุ่ม {selectedEmployee.groupType}</p>
+                  <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-700">กลุ่ม {selectedEmployee.groupType}</span>
+                    {selectedEmployee.department && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-700">{selectedEmployee.department}</span>
+                    )}
+                  </div>
                 </div>
               )}
 

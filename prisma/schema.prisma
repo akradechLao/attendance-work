@@ -75,6 +75,7 @@ model Company {
   holidays        CompanyHoliday[]
   leaveTypes      LeaveType[]
   leaveRequests   LeaveRequest[]
+  otRequests      OtRequest[]
   shiftSchedules  ShiftSchedule[]
   settings        CompanySetting[]
 
@@ -86,10 +87,14 @@ model Employee {
   companyId     Int       @map("company_id")
   name          String
   groupType     GroupType @map("group_type")
+  department    String?   @map("department")
   wfhQuota      Int       @default(1) @map("wfh_quota")
   preferredOffDay String? @map("preferred_off_day")
   pin           String?
   employeeCode  String?   @map("employee_code")
+  supervisorName  String? @map("supervisor_name")
+  supervisorLine  String? @map("supervisor_line")
+  supervisorPhone String? @map("supervisor_phone")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -98,6 +103,7 @@ model Employee {
   shiftSchedules ShiftSchedule[]
   leaveRequests  LeaveRequest[]
   wfhRecords     WfhRecord[]
+  otRequests     OtRequest[]
   onboarding     OnboardingRecord?
 
   @@index([companyId])
@@ -176,6 +182,28 @@ model WfhRecord {
 
   @@unique([empId, date])
   @@map("wfh_records")
+}
+
+model OtRequest {
+  id          Int      @id @default(autoincrement())
+  companyId   Int      @map("company_id")
+  empId       Int      @map("emp_id")
+  date        String
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  reason      String
+  status      String   @default("pending")
+  approvedBy  String?  @map("approved_by")
+  approvedAt  DateTime? @map("approved_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [empId], references: [id])
+  company  Company  @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([empId])
+  @@index([status])
+  @@map("ot_requests")
 }
 
 model AdminUser {
