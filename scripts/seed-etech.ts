@@ -17,6 +17,8 @@ async function main() {
       companyId,
       groupType: "B",
       position: "md",
+      level: 1,
+      hasOt: false,
       division: "กรรมการบริหาร",
       department: null,
       reportsTo: null,
@@ -34,6 +36,8 @@ async function main() {
       companyId,
       groupType: "B",
       position: "division_manager",
+      level: 3,
+      hasOt: false,
       division: "ศึกษาสิ่งแวดล้อม",
       department: null,
       reportsTo: md.id,
@@ -43,12 +47,12 @@ async function main() {
   });
   console.log(`Created Manager: ${manager.name} (id=${manager.id})`);
 
-  // Create staff (reports to Manager)
+  // Create staff (reports to Manager) - all have OT
   const staff = [
-    { name: "ธิติรัตน์ อุดมพันธ์", code: "0006" },
-    { name: "ทัชชา ปะละ", code: "0016" },
-    { name: "ณิชาภา รุจิรัตโยธิน", code: "021" },
-    { name: "วารุณี บัวงาม", code: "029" },
+    { name: "ธิติรัตน์ อุดมพันธ์", code: "0006", level: 6 },
+    { name: "ทัชชา ปะละ", code: "0016", level: 6 },
+    { name: "ณิชาภา รุจิรัตโยธิน", code: "021", level: 6 },
+    { name: "วารุณี บัวงาม", code: "029", level: 6 },
   ];
 
   for (const s of staff) {
@@ -59,6 +63,8 @@ async function main() {
         companyId,
         groupType: "B",
         position: "employee",
+        level: s.level,
+        hasOt: true,
         division: "ศึกษาสิ่งแวดล้อม",
         department: null,
         reportsTo: manager.id,

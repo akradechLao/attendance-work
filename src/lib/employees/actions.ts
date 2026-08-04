@@ -15,6 +15,8 @@ export async function createEmployee(
     department?: string | null;
     division?: string | null;
     position?: string;
+    level?: number | null;
+    hasOt?: boolean;
     reportsTo?: number | null;
   }
 ) {
@@ -36,6 +38,8 @@ export async function createEmployee(
         department: options?.department || null,
         division: options?.division || null,
         position: options?.position || "employee",
+        level: options?.level || null,
+        hasOt: options?.hasOt || false,
         reportsTo: options?.reportsTo || null,
       },
     });
@@ -59,6 +63,8 @@ export async function updateEmployee(
     department?: string | null;
     division?: string | null;
     position?: string;
+    level?: number | null;
+    hasOt?: boolean;
     reportsTo?: number | null;
   }
 ) {
@@ -83,6 +89,8 @@ export async function updateEmployee(
         department: options?.department || null,
         division: options?.division || null,
         position: options?.position || "employee",
+        level: options?.level || null,
+        hasOt: options?.hasOt || false,
         reportsTo: options?.reportsTo || null,
       },
     });

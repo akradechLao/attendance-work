@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("companyId");
+    const status = searchParams.get("status") || "pending";
 
     if (!companyId) {
       return NextResponse.json({ success: false, message: "กรุณาระบุ companyId" }, { status: 400 });
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const otRequests = await prisma.otRequest.findMany({
       where: {
         companyId: Number(companyId),
-        status: "pending",
+        status,
       },
       include: {
         employee: {

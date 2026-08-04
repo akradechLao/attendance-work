@@ -17,10 +17,13 @@ interface OtRequest {
   };
 }
 
+type ApprovalMode = "manager" | "hr";
+
 export default function SupervisorPage() {
   const [requests, setRequests] = useState<OtRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<number | null>(null);
+  const [mode, setMode] = useState<ApprovalMode>("manager");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -35,21 +38,27 @@ export default function SupervisorPage() {
   useEffect(() => {
     if (!companyId) return;
     setLoading(true);
-    fetch(`/api/ot-request/list?companyId=${companyId}`)
+    const status = mode === "manager" ? "pending" : "manager_approved";
+    fetch(`/api/ot-request/list?companyId=${companyId}&status=${status}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setRequests(data.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [companyId]);
+  }, [companyId, mode]);
 
-  const handleApprove = async (id: number, status: "approved" | "rejected") => {
+  const handleApprove = async (id: number, status: "manager_approved" | "approved" | "rejected") => {
     try {
       const res = await fetch("/api/ot-request/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status, approvedBy: "Admin" }),
+        body: JSON.stringify({
+          id,
+          status,
+          approvedBy: mode === "hr" ? "HR/Payroll" : "Manager",
+          role: mode,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -66,11 +75,37 @@ export default function SupervisorPage() {
         <div className="mb-6 flex items-center gap-3">
           <div className="h-10 w-1.5 gradient-gold rounded-full" />
           <div>
-            <h1 className="text-2xl font-bold text-navy">อนุมัติคำขอโอที</h1>
+            <h1 className="text-2xl font-bold text-navy">
+              {mode === "manager" ? "อนุมัติคำขอโอที (หัวหน้า)" : "ตรวจสอบคำขอโอที (HR/Payroll)"}
+            </h1>
             <p className="mt-0.5 text-sm text-navy/50">
               {pendingCount > 0 ? `มี ${pendingCount} รายการรออนุมัติ` : "ไม่มีรายการรออนุมัติ"}
             </p>
           </div>
+        </div>
+
+        {/* Mode Toggle */}
+        <div className="mb-6 flex gap-2">
+          <button
+            onClick={() => setMode("manager")}
+            className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+              mode === "manager"
+                ? "bg-navy text-white"
+                : "bg-white text-navy border border-cream-dark hover:bg-cream"
+            }`}
+          >
+            หัวหน้าอนุมัติ
+          </button>
+          <button
+            onClick={() => setMode("hr")}
+            className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+              mode === "hr"
+                ? "bg-navy text-white"
+                : "bg-white text-navy border border-cream-dark hover:bg-cream"
+            }`}
+          >
+            HR/Payroll ตรวจสอบ
+          </button>
         </div>
 
         {loading ? (
@@ -80,7 +115,9 @@ export default function SupervisorPage() {
             <svg className="mx-auto h-12 w-12 text-navy/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="mt-4 text-navy/40">ไม่มีคำขอโอทีที่รออนุมัติ</p>
+            <p className="mt-4 text-navy/40">
+              {mode === "manager" ? "ไม่มีคำขอโอทีที่รออนุมัติ" : "ไม่มีคำขอโอทีที่รอตรวจสอบ"}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -105,18 +142,37 @@ export default function SupervisorPage() {
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => handleApprove(req.id, "approved")}
-                    className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
-                  >
-                    อนุมัติ
-                  </button>
-                  <button
-                    onClick={() => handleApprove(req.id, "rejected")}
-                    className="flex-1 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-                  >
-                    ปฏิเสธ
-                  </button>
+                  {mode === "manager" ? (
+                    <>
+                      <button
+                        onClick={() => handleApprove(req.id, "manager_approved")}
+                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+                      >
+                        อนุมัติ
+                      </button>
+                      <button
+                        onClick={() => handleApprove(req.id, "rejected")}
+                        className="flex-1 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                      >
+                        ปฏิเสธ
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleApprove(req.id, "approved")}
+                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+                      >
+                        อนุมัติสุดท้าย
+                      </button>
+                      <button
+                        onClick={() => handleApprove(req.id, "rejected")}
+                        className="flex-1 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                      >
+                        ปฏิเสธ
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

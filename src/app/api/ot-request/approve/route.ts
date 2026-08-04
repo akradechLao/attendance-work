@@ -5,7 +5,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, status, approvedBy } = body;
+    const { id, status, approvedBy, role } = body;
 
     if (!id || !status) {
       return NextResponse.json(
@@ -14,7 +14,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!["approved", "rejected"].includes(status)) {
+    // role: "manager" = หัวหน้าอนุมัติ, "hr" = HR/payroll อนุมัติสุดท้าย
+    const validStatuses = role === "hr"
+      ? ["approved", "rejected"]
+      : ["manager_approved", "rejected"];
+
+    if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, message: "สถานะไม่ถูกต้อง" },
         { status: 400 }
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const otRequest = await prisma.otRequest.findUnique({
       where: { id: Number(id) },
-      include: { employee: { select: { name: true, employeeCode: true, department: true } } },
+      include: { employee: { select: { name: true, employeeCode: true, department: true, companyId: true } } },
     });
 
     if (!otRequest) {
@@ -33,11 +38,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate status transition
+    if (role === "manager" && otRequest.status !== "pending") {
+      return NextResponse.json(
+        { success: false, message: "คำขอโอทีนี้ได้รับการดำเนินการแล้ว" },
+        { status: 400 }
+      );
+    }
+
+    if (role === "hr" && otRequest.status !== "manager_approved") {
+      return NextResponse.json(
+        { success: false, message: "ต้องได้รับการอนุมัติจากหัวหน้าก่อน" },
+        { status: 400 }
+      );
+    }
+
+    const newStatus = status === "rejected" ? "rejected" : status;
+
     await prisma.otRequest.update({
       where: { id: Number(id) },
       data: {
-        status,
-        approvedBy: approvedBy || "Admin",
+        status: newStatus,
+        approvedBy: approvedBy || (role === "hr" ? "HR/Payroll" : "Manager"),
         approvedAt: new Date(),
       },
     });
@@ -45,11 +67,14 @@ export async function POST(request: NextRequest) {
     const empDisplay = otRequest.employee.employeeCode
       ? `${otRequest.employee.employeeCode} ${otRequest.employee.name}`
       : otRequest.employee.name;
-    const statusText = status === "approved" ? "อนุมัติ" : "ปฏิเสธ";
+
+    const statusText = status === "rejected" ? "ปฏิเสธ"
+      : status === "manager_approved" ? "หัวหน้าอนุมัติ"
+      : "HR/Payroll อนุมัติสุดท้าย";
 
     try {
       sendTelegramMessage(
-        `✅ <b>โอที${statusText}</b>\nพนักงาน: ${empDisplay}\nวันที่: ${otRequest.date}\nเวลา: ${otRequest.startTime} - ${otRequest.endTime}\nโดย: ${approvedBy || "Admin"}`
+        `✅ <b>โอที${statusText}</b>\nพนักงาน: ${empDisplay}\nวันที่: ${otRequest.date}\nเวลา: ${otRequest.startTime} - ${otRequest.endTime}\nโดย: ${approvedBy || (role === "hr" ? "HR/Payroll" : "Manager")}`
       );
     } catch {}
 

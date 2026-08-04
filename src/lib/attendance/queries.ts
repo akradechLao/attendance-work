@@ -34,6 +34,8 @@ export async function getAllEmployees() {
       department: true,
       division: true,
       position: true,
+      level: true,
+      hasOt: true,
       reportsTo: true,
       wfhQuota: true,
       preferredOffDay: true,

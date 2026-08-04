@@ -90,6 +90,8 @@ model Employee {
   department    String?   @map("department")
   division      String?   @map("division")
   position      String    @default("employee") @map("position")
+  level         Int?      @map("level")
+  hasOt         Boolean   @default(false) @map("has_ot")
   reportsTo     Int?      @map("reports_to")
   wfhQuota      Int       @default(1) @map("wfh_quota")
   preferredOffDay String? @map("preferred_off_day")

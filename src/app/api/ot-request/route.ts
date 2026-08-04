@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const employee = await prisma.employee.findUnique({
       where: { id: Number(empId) },
-      select: { name: true, employeeCode: true, department: true, companyId: true },
+      select: { name: true, employeeCode: true, department: true, companyId: true, hasOt: true, reportsTo: true },
     });
 
     if (!employee || employee.companyId !== Number(companyId)) {
@@ -24,6 +24,23 @@ export async function POST(request: NextRequest) {
         { success: false, message: "ไม่พบข้อมูลพนักงาน" },
         { status: 404 }
       );
+    }
+
+    // Check if employee has OT eligibility
+    if (!employee.hasOt) {
+      return NextResponse.json(
+        { success: false, message: "พนักงานคนนี้ไม่มีสิทธิ์เบิกค่าโอที" },
+        { status: 403 }
+      );
+    }
+
+    // Get manager info for notification
+    let managerInfo = null;
+    if (employee.reportsTo) {
+      managerInfo = await prisma.employee.findUnique({
+        where: { id: employee.reportsTo },
+        select: { name: true, employeeCode: true },
+      });
     }
 
     const otRequest = await prisma.otRequest.create({
@@ -42,10 +59,13 @@ export async function POST(request: NextRequest) {
       ? `${employee.employeeCode} ${employee.name}`
       : employee.name;
     const deptDisplay = employee.department ? ` (${employee.department})` : "";
+    const managerDisplay = managerInfo
+      ? `\nหัวหน้า: ${managerInfo.employeeCode || ""} ${managerInfo.name}`
+      : "";
 
     try {
       sendTelegramMessage(
-        `📋 <b>ขอโอทีใหม่</b>\nพนักงาน: ${empDisplay}${deptDisplay}\nวันที่: ${date}\nเวลา: ${startTime} - ${endTime}\nเหตุผล: ${reason}`
+        `📋 <b>ขอโอทีใหม่</b>\nพนักงาน: ${empDisplay}${deptDisplay}${managerDisplay}\nวันที่: ${date}\nเวลา: ${startTime} - ${endTime}\nเหตุผล: ${reason}`
       );
     } catch {}
 

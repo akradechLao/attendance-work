@@ -16,6 +16,8 @@ interface Employee {
   department: string | null;
   division: string | null;
   position: string;
+  level: number | null;
+  hasOt: boolean;
   reportsTo: number | null;
   wfhQuota: number;
   preferredOffDay: string | null;
@@ -27,6 +29,8 @@ interface EmployeeForm {
   department: string;
   division: string;
   position: string;
+  level: string;
+  hasOt: boolean;
   reportsTo: string;
   preferredOffDay: string;
 }
@@ -37,6 +41,8 @@ const emptyForm: EmployeeForm = {
   department: "",
   division: "",
   position: "employee",
+  level: "",
+  hasOt: false,
   reportsTo: "",
   preferredOffDay: "",
 };
@@ -114,6 +120,8 @@ export default function EmployeesPage() {
       department: emp.department || "",
       division: emp.division || "",
       position: emp.position || "employee",
+      level: emp.level ? String(emp.level) : "",
+      hasOt: emp.hasOt,
       reportsTo: emp.reportsTo ? String(emp.reportsTo) : "",
       preferredOffDay: emp.preferredOffDay || "",
     });
@@ -132,10 +140,13 @@ export default function EmployeesPage() {
     try {
       const preferredOffDay = form.preferredOffDay || null;
       const reportsTo = form.reportsTo ? Number(form.reportsTo) : null;
+      const level = form.level ? Number(form.level) : null;
       const opts = {
         department: form.department || null,
         division: form.division || null,
         position: form.position,
+        level,
+        hasOt: form.hasOt,
         reportsTo,
       };
       const result = editId
@@ -267,6 +278,30 @@ export default function EmployeesPage() {
                   <option value="assistant_md">ผู้ช่วย กรรมการผู้จัดการ</option>
                   <option value="md">กรรมการผู้จัดการ</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy/70">Level (ความอาวุโส)</label>
+                <input
+                  type="number"
+                  value={form.level}
+                  onChange={(e) => setForm({ ...form, level: e.target.value })}
+                  placeholder="เช่น 1, 3, 6"
+                  min="1"
+                  max="10"
+                  className="mt-1 w-full rounded-lg border border-cream-dark bg-cream/50 px-4 py-2.5 text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30"
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-6">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.hasOt}
+                    onChange={(e) => setForm({ ...form, hasOt: e.target.checked })}
+                    className="peer sr-only"
+                  />
+                  <div className="h-6 w-11 rounded-full bg-cream-dark after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full" />
+                </label>
+                <span className="text-sm font-medium text-navy/70">สิทธิ์เบิกค่าโอที</span>
               </div>
               <div>
                 <label className="block text-sm font-medium text-navy/70">หัวหน้าโดยตรง (ID)</label>
