@@ -6,10 +6,10 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const companies = [
-  { name: "บริษัท นอร์ทเทิร์นไทยคอนซัลติ้ง จำกัด" },
-  { name: "บริษัท อีสเทิร์นไทยคอนซัลติ้ง1992 จำกัด" },
-  { name: "บริษัท เอ็นไวรอนเมนทอลเทคโนโลยีคอนซัลแตนท์ จำกัด" },
-  { name: "บริษัท เซาท์เทิร์นไทยคอนซัลติ้ง จำกัด" },
+  { name: "NTC" },
+  { name: "ETC1992" },
+  { name: "ETECH" },
+  { name: "STC" },
 ];
 
 const company1Employees = [

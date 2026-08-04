@@ -260,10 +260,10 @@ CREATE INDEX "idx_onboarding_training_onboarding_id" ON "onboarding_training"("o
 
 -- Companies
 INSERT INTO "companies" ("id", "name", "created_at") VALUES
-(1, 'บริษัท นอร์ทเทิร์นไทยคอนซัลติ้ง จำกัด', CURRENT_TIMESTAMP),
-(2, 'บริษัท อีสเทิร์นไทยคอนซัลติ้ง1992 จำกัด', CURRENT_TIMESTAMP),
-(3, 'บริษัท เอ็นไวรอนเมนทอลเทคโนโลยีคอนซัลแตนท์ จำกัด', CURRENT_TIMESTAMP),
-(4, 'บริษัท เซาท์เทิร์นไทยคอนซัลติ้ง จำกัด', CURRENT_TIMESTAMP);
+(1, 'NTC', CURRENT_TIMESTAMP),
+(2, 'ETC1992', CURRENT_TIMESTAMP),
+(3, 'ETECH', CURRENT_TIMESTAMP),
+(4, 'STC', CURRENT_TIMESTAMP);
 
 -- Admin User (super admin - can see all companies)
 INSERT INTO "admin_users" ("username", "password", "created_at", "updated_at")
