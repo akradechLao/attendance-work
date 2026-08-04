@@ -9,16 +9,11 @@ export function middleware(request: NextRequest) {
   const isPublicApi = pathname === "/api/companies" || pathname === "/api/employees/search";
   const isApiUpload = pathname === "/api/upload";
 
-  // Redirect /employee to /checkin (V2.0)
-  if (pathname === "/employee" || pathname.startsWith("/employee/")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/checkin";
-    return NextResponse.redirect(url);
-  }
+  // Public pages (no login required)
+  const isPublicPage = pathname === "/employee" || pathname.startsWith("/employee/")
+    || pathname.startsWith("/supervisor") || pathname.startsWith("/manager");
 
-  const isEmployeePage = pathname.startsWith("/checkin") || pathname.startsWith("/supervisor") || pathname.startsWith("/manager");
-
-  if (isApiAuth || isPublicApi || isApiUpload || isEmployeePage) {
+  if (isApiAuth || isPublicApi || isApiUpload || isPublicPage) {
     return NextResponse.next();
   }
 
