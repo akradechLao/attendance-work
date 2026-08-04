@@ -8,7 +8,15 @@ export function middleware(request: NextRequest) {
   const isApiAuth = pathname.startsWith("/api/auth");
   const isPublicApi = pathname === "/api/companies" || pathname === "/api/employees/search";
   const isApiUpload = pathname === "/api/upload";
-  const isEmployeePage = pathname.startsWith("/employee") || pathname.startsWith("/checkin") || pathname.startsWith("/supervisor") || pathname.startsWith("/manager");
+
+  // Redirect /employee to /checkin (V2.0)
+  if (pathname === "/employee" || pathname.startsWith("/employee/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/checkin";
+    return NextResponse.redirect(url);
+  }
+
+  const isEmployeePage = pathname.startsWith("/checkin") || pathname.startsWith("/supervisor") || pathname.startsWith("/manager");
 
   if (isApiAuth || isPublicApi || isApiUpload || isEmployeePage) {
     return NextResponse.next();
