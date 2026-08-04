@@ -6,6 +6,7 @@ import { getAllEmployees, getTodayAttendance, getEmployeeWeeklyStats } from "@/l
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { getPhotoSrc } from "@/lib/photo-utils";
 import SearchableSelect from "@/components/SearchableSelect";
+import { useRouter } from "next/navigation";
 
 interface Employee {
   id: number;
@@ -43,6 +44,12 @@ export default function EmployeePortalWrapper() {
 }
 
 function EmployeePortal() {
+  const router = useRouter();
+
+  // Redirect to /checkin (V2.0)
+  useEffect(() => {
+    router.replace("/checkin");
+  }, [router]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState<number | null>(null);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
