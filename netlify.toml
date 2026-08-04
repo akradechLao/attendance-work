@@ -11,4 +11,3 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_RUNTIME = "nodejs"
-  DATABASE_URL = "postgresql://postgres.fuqckantlgtrxywahdxx:6rDz%25%2By6%2CR8DgAm@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
