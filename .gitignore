@@ -33,8 +33,14 @@ yarn-error.log*
 # env files
 .env*
 
+# build artifacts
+.netlify/
+.vercel/
+deno.lock
+tsconfig.tsbuildinfo
+
 # typescript
-*.tsbuildinfo
 next-env.d.ts
 
+# prisma
 /src/generated/prisma
