@@ -5,6 +5,7 @@ import { calculateOTHours } from "@/lib/business-rules";
 import type { GroupType } from "@/generated/prisma/enums";
 import { getDatesInRange, calcWorkHours } from "@/lib/helpers";
 import { getCompanyId } from "@/lib/auth/actions";
+import { EXCLUDED_ATTENDANCE_POSITIONS } from "@/lib/attendance/constants";
 
 export interface EmployeeStats {
   empId: number;
@@ -27,13 +28,19 @@ export async function getAttendanceStats(startDate: string, endDate: string): Pr
 
   const [employees, attendance, leaves, wfhRecords] = await Promise.all([
     prisma.employee.findMany({
-      where: { ...(companyId ? { companyId } : {}) },
+      where: {
+        position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+        ...(companyId ? { companyId } : {}),
+      },
       orderBy: { id: "asc" },
     }),
     prisma.attendanceLog.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
-        ...(companyId ? { employee: { companyId } } : {}),
+        employee: {
+          position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+          ...(companyId ? { companyId } : {}),
+        },
       },
       include: { employee: true },
     }),
@@ -41,7 +48,10 @@ export async function getAttendanceStats(startDate: string, endDate: string): Pr
       where: {
         status: { not: "rejected" },
         OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
-        ...(companyId ? { companyId } : {}),
+        employee: {
+          position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+          ...(companyId ? { companyId } : {}),
+        },
       },
       include: { leaveType: true },
     }),
@@ -49,7 +59,10 @@ export async function getAttendanceStats(startDate: string, endDate: string): Pr
       where: {
         date: { gte: startDate, lte: endDate },
         status: { not: "rejected" },
-        ...(companyId ? { employee: { companyId } } : {}),
+        employee: {
+          position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+          ...(companyId ? { companyId } : {}),
+        },
       },
     }),
   ]);
@@ -194,14 +207,20 @@ export async function getOtSummary(startDate: string, endDate: string): Promise<
   const companyId = await getCompanyId();
   const [employees, records] = await Promise.all([
     prisma.employee.findMany({
-      where: { ...(companyId ? { companyId } : {}) },
+      where: {
+        position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+        ...(companyId ? { companyId } : {}),
+      },
       orderBy: { id: "asc" },
     }),
     prisma.attendanceLog.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
         checkOut: { not: null },
-        ...(companyId ? { employee: { companyId } } : {}),
+        employee: {
+          position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+          ...(companyId ? { companyId } : {}),
+        },
       },
     }),
   ]);

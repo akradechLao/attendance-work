@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isTodaySunday } from "@/lib/business-rules";
 import { getThaiTime, calcWorkHours } from "@/lib/helpers";
 import { getCompanyId } from "@/lib/auth/actions";
+import { EXCLUDED_ATTENDANCE_POSITIONS } from "@/lib/attendance/constants";
 
 export async function getTodayAttendance() {
   const companyId = await getCompanyId();
@@ -13,7 +14,10 @@ export async function getTodayAttendance() {
   return prisma.attendanceLog.findMany({
     where: {
       date: today,
-      ...(companyId ? { employee: { companyId } } : {}),
+      employee: {
+        position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+        ...(companyId ? { companyId } : {}),
+      },
     },
     include: { employee: true },
     orderBy: { checkIn: "asc" },
@@ -23,7 +27,10 @@ export async function getTodayAttendance() {
 export async function getAllEmployees() {
   const companyId = await getCompanyId();
   return prisma.employee.findMany({
-    where: { ...(companyId ? { companyId } : {}) },
+    where: {
+      position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+      ...(companyId ? { companyId } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -55,7 +62,10 @@ export async function getSundayMissingAfternoon() {
     where: {
       date: today,
       checkIn: { not: null },
-      ...(companyId ? { employee: { companyId } } : {}),
+      employee: {
+        position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+        ...(companyId ? { companyId } : {}),
+      },
     },
     include: { employee: true },
   });
@@ -79,7 +89,10 @@ export async function getAttendanceWithPhotos(startDate: string, endDate: string
     where: {
       date: { gte: startDate, lte: endDate },
       OR: [{ checkInPhoto: { not: null } }, { checkOutPhoto: { not: null } }],
-      ...(companyId ? { employee: { companyId } } : {}),
+      employee: {
+        position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+        ...(companyId ? { companyId } : {}),
+      },
     },
     include: { employee: true },
     orderBy: { date: "desc" },

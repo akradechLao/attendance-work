@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { EXCLUDED_ATTENDANCE_POSITIONS } from "@/lib/attendance/constants";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
 
     const managerLevel = positionHierarchy[manager.position] || 0;
 
-    let whereClause: any = { companyId: manager.companyId };
+    let whereClause: any = {
+      companyId: manager.companyId,
+      position: { notIn: EXCLUDED_ATTENDANCE_POSITIONS },
+    };
 
     if (managerLevel >= 5) {
       if (department) whereClause.department = department;
