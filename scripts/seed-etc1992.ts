@@ -35,14 +35,18 @@ interface CsvEmployee {
 function mapPositionTto(name: string): string {
   const n = name.replace(/\s+/g, " ").trim();
 
-  // Assistant MD (check BEFORE MD since รอง/ผู้ช่วย prefix overlaps)
+  // Chairman (ประธานบริษัท) - top of hierarchy
+  if (n.includes("ประธานบริษัท")) return "chairman";
+
+  // Executive Director (กรรมการบริหาร)
+  if (n.includes("กรรมการบริหาร")) return "executive_director";
+
+  // MD (กรรมการผู้จัดการ)
+  if (n.includes("กรรมการผู้จัดการ")) return "md";
+
+  // Assistant MD (รอง/ผู้ช่วย กรรมการผู้จัดการ)
   if (n.includes("รองกรรมการผู้จัดการ")) return "assistant_md";
   if (n.includes("ผู้ช่วยกรรมการผู้จัดการ")) return "assistant_md";
-  if (n.includes("กรรมการบริษัท")) return "assistant_md"; // Board member
-
-  // MD-level
-  if (n.includes("กรรมการผู้จัดการ")) return "md";
-  if (n.includes("ประธานบริษัท")) return "md";
 
   // Managers
   if (n.includes("ผู้จัดการฝ่าย") || n.includes("ผู้จัดการแผนก")) return "division_manager";
@@ -58,7 +62,9 @@ function mapPositionTto(name: string): string {
 // Thai position → level number
 function mapLevel(name: string, csvLevel: string): number | null {
   const pos = mapPositionTto(name);
+  if (pos === "chairman") return 0;  // ประธานบริษัท - highest
   if (pos === "md") return 1;
+  if (pos === "executive_director") return 1;
   if (pos === "assistant_md") return 2;
   if (pos === "division_manager") return 3;
   if (pos === "team_lead") return 5;
@@ -221,19 +227,30 @@ async function main() {
 
   // Phase 2: Assign reportsTo based on hierarchy
   // Strategy:
-  //   - MD (level 1) reports to null
+  //   - Chairman (level 0) reports to null (top)
+  //   - MD (level 1) reports to Chairman
   //   - Assistant MD (level 2) reports to MD
   //   - Managers (level 3) report to MD (or another manager in same division if exists)
   //   - Staff (level >=5) report to manager in same division
 
-  // Find MD (first MD found)
-  let mdId: number | null = null;
+  // Find Chairman (ประธานบริษัท) - top of hierarchy
+  let chairmanId: number | null = null;
   for (const emp of allEmployees) {
     const mapEntry = empMap.get(emp.employeeCode);
-    if (mapEntry && mapEntry.position === "md" && mdId === null) {
-      mdId = mapEntry.id;
-      console.log(`MD found: ${emp.firstName} ${emp.lastName} (code=${emp.employeeCode}, id=${mdId})`);
+    if (mapEntry && mapEntry.position === "chairman" && chairmanId === null) {
+      chairmanId = mapEntry.id;
+      console.log(`Chairman found: ${emp.firstName} ${emp.lastName} (code=${emp.employeeCode}, id=${chairmanId})`);
       break;
+    }
+  }
+
+  // Find MDs (กรรมการผู้จัดการ)
+  const mdIds: number[] = [];
+  for (const emp of allEmployees) {
+    const mapEntry = empMap.get(emp.employeeCode);
+    if (mapEntry && mapEntry.position === "md") {
+      mdIds.push(mapEntry.id);
+      console.log(`MD found: ${emp.firstName} ${emp.lastName} (code=${emp.employeeCode}, id=${mapEntry.id})`);
     }
   }
 
@@ -283,24 +300,23 @@ async function main() {
 
     let reportsTo: number | null = null;
 
-    if (mapEntry.position === "md") {
-      if (mapEntry.id === mdId) {
-        reportsTo = null; // The first MD is the top
-      } else {
-        reportsTo = mdId; // Other MDs report to the first MD
-      }
+    if (mapEntry.position === "chairman") {
+      reportsTo = null; // Chairman is top
+    } else if (mapEntry.position === "md") {
+      reportsTo = chairmanId; // MD reports to Chairman
     } else if (mapEntry.position === "assistant_md") {
-      reportsTo = mdId; // Assistant MDs report to MD
+      // Assistant MD reports to first MD (or chairman if no MD)
+      reportsTo = mdIds[0] || chairmanId;
     } else if (mapEntry.position === "division_manager") {
-      reportsTo = mdId; // Managers report to MD
+      reportsTo = mdIds[0] || chairmanId; // Managers report to MD
     } else if (mapEntry.position === "team_lead") {
       // Report to the manager in same division
       const sameDivMgr = mapEntry.division ? divToManager.get(mapEntry.division) : null;
-      reportsTo = sameDivMgr || mdId;
+      reportsTo = sameDivMgr || mdIds[0] || chairmanId;
     } else {
       // Staff - report to manager in same division
       const sameDivMgr = mapEntry.division ? divToManager.get(mapEntry.division) : null;
-      reportsTo = sameDivMgr || mdId;
+      reportsTo = sameDivMgr || mdIds[0] || chairmanId;
     }
 
     if (reportsTo !== null) {
@@ -319,6 +335,12 @@ async function main() {
   const withReports = await prisma.employee.count({
     where: { companyId: COMPANY_ID, reportsTo: { not: null } },
   });
+  const chairmanCount = await prisma.employee.count({
+    where: { companyId: COMPANY_ID, position: "chairman" },
+  });
+  const execDirCount = await prisma.employee.count({
+    where: { companyId: COMPANY_ID, position: "executive_director" },
+  });
   const mdCount = await prisma.employee.count({
     where: { companyId: COMPANY_ID, position: "md" },
   });
@@ -334,6 +356,8 @@ async function main() {
 
   console.log(`\nETC1992 Summary:`);
   console.log(`  Total: ${count}`);
+  console.log(`  Chairman: ${chairmanCount}`);
+  console.log(`  Executive Director: ${execDirCount}`);
   console.log(`  MD: ${mdCount}`);
   console.log(`  Assistant MD: ${assistantMdCount}`);
   console.log(`  Managers: ${mgrCount}`);

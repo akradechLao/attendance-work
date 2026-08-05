@@ -26,7 +26,9 @@ export async function GET(request: NextRequest) {
       dept_manager: 2,
       division_manager: 3,
       assistant_md: 4,
-      md: 5,
+      executive_director: 5,
+      md: 6,
+      chairman: 7, // ประธานบริษัท - highest
     };
 
     const managerLevel = positionHierarchy[manager.position] || 0;
