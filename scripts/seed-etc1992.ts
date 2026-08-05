@@ -79,8 +79,8 @@ function parseCsv(filePath: string): CsvEmployee[] {
   const content = fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = content.split("\n");
 
-  // Skip first 2 rows (Template Employee header and column header)
-  const dataLines = lines.slice(2);
+  // Skip first 3 rows (Template Employee, English headers, Thai column headers)
+  const dataLines = lines.slice(3);
   const results: CsvEmployee[] = [];
 
   for (const line of dataLines) {
@@ -127,6 +127,8 @@ function parseCsv(filePath: string): CsvEmployee[] {
       branch: cols[21] || "",
     };
 
+    // Skip header/template rows (Thai column header translations)
+    if (emp.firstName === "ชื่อจริง" || emp.lastName === "นามสกุล") continue;
     if (!emp.firstName && !emp.lastName) continue;
     results.push(emp);
   }
