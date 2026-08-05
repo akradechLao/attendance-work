@@ -59,6 +59,18 @@ export default function RootLayout({
     >
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  regs.forEach(function(r) { r.unregister(); });
+                });
+                navigator.serviceWorker.register('/sw.js');
+              }
+            `,
+          }}
+        />
       </head>
       <body className="min-h-full bg-cream">
         <UnregisterOldSW />
