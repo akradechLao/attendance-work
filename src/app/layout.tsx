@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import UnregisterOldSW from "@/components/UnregisterOldSW";
 import PwaRegistration from "@/components/PwaRegistration";
 
 const geistSans = Geist({
@@ -60,6 +61,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
       </head>
       <body className="min-h-full bg-cream">
+        <UnregisterOldSW />
         {/* <PwaRegistration /> */}
         <Sidebar />
         <main className="ml-0 min-h-screen p-4 pt-20 overflow-x-hidden lg:ml-60 lg:p-6 lg:pt-6">
