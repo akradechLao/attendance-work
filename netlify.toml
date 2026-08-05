@@ -1,7 +1,6 @@
 [build]
-  command = "rm -f package-lock.json && npm install && npx prisma generate && next build"
+  command = "rm -rf node_modules package-lock.json .next && npm install && npx prisma generate && next build"
   publish = ".next"
-  # Clear cache for fresh build
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
