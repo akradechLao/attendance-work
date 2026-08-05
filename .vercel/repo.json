@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_s1H2CuHNkcv8nJcQkU3iLucYlOVL",
+      "name": "attendance-system",
+      "directory": ".",
+      "orgId": "team_bgq687D57WcW9ZMo8wd6ZCnY"
+    }
+  ]
+}
