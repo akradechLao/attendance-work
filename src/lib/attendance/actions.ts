@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 import { sendTelegramPhoto, sendTelegramMessage } from "@/lib/telegram";
 import { getSession } from "@/lib/session";
 import { getThaiTime } from "@/lib/helpers";
-import { getCompanyId } from "@/lib/auth/actions";
 
 async function getActiveOfficeLocation(companyId?: number) {
   return prisma.officeLocation.findFirst({
@@ -46,7 +45,6 @@ export interface CheckOutResult {
 
 export async function checkIn(empId: number, latLong: string, photoUrl?: string): Promise<CheckInResult> {
   try {
-    const companyId = await getCompanyId();
     const now = getThaiTime();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -60,9 +58,7 @@ export async function checkIn(empId: number, latLong: string, photoUrl?: string)
       return { success: false, message: "ไม่พบพนักงาน" };
     }
 
-    if (companyId && employee.companyId !== companyId) {
-      return { success: false, message: "ไม่พบพนักงาน" };
-    }
+    const companyId = employee.companyId;
 
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
     let distanceInfo: string | undefined;
@@ -145,7 +141,6 @@ export async function checkIn(empId: number, latLong: string, photoUrl?: string)
 
 export async function checkOut(empId: number, latLong: string, photoUrl?: string): Promise<CheckOutResult> {
   try {
-    const companyId = await getCompanyId();
     const now = getThaiTime();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const checkOutTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
@@ -164,9 +159,7 @@ export async function checkOut(empId: number, latLong: string, photoUrl?: string
       return { success: false, message: "ยังไม่ได้เช็คอินวันนี้" };
     }
 
-    if (companyId && existing.employee.companyId !== companyId) {
-      return { success: false, message: "ยังไม่ได้เช็คอินวันนี้" };
-    }
+    const companyId = existing.employee.companyId;
 
     const isWfh = wfhRecord !== null && wfhRecord.status !== "rejected";
     let distanceInfo: string | undefined;
